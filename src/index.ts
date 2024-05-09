@@ -21,9 +21,10 @@ export default {
       bot.on("message", (ctx) => ctx.reply("Got another message!"));
 
       const cb = webhookCallback(bot, "cloudflare-mod");
-
+      console.log("Request received");
       return await cb(request);
     } catch (e: any) {
+      console.error(e);
       return new Response(e.message);
     }
   },
