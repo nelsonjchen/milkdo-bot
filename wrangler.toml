@@ -1,3 +1,8 @@
 name = "dialoh-bot"
 main = "src/index.ts"
 compatibility_date = "2024-05-09"
+
+[[d1_databases]]
+binding = "DB" # i.e. available in your Worker on env.DB
+database_name = "dialoh_d1_storage"
+database_id = "078cb3d3-2413-4a6e-a071-a3dcbc1c0132"
