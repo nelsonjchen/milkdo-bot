@@ -134,6 +134,7 @@ export default {
       }
 
       const handleSendLongChat = async (ctx: MyContext, message: string) => {
+        await ctx.replyWithChatAction("typing");
         const interval = setInterval(async () => {
           await ctx.replyWithChatAction("typing");
         }, 4000);
@@ -145,10 +146,18 @@ export default {
       };
 
       bot.on("message:text", async (ctx) => {
+        console.log("Received text message", {
+          message: ctx.message.text,
+          from: ctx.message.from,
+        });
         await handleSendLongChat(ctx, ctx.message.text);
       });
 
       bot.on("message:voice", async (ctx) => {
+        console.log("Received voice message", {
+          message: ctx.message.voice,
+          from: ctx.message.from,
+        });
         // Get fileID from the voice message
         const fileId = ctx.message.voice.file_id;
         // Get the file URL
