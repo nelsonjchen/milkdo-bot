@@ -109,6 +109,9 @@ export default {
           fullName = `${firstName}_${ctx.message.from.last_name}`;
         }
 
+        // Strip all all non-ASCII characters from fullName
+        fullName = fullName.replace(/[^\x00-\x7F]/g, "");
+
         ctx.session.messages.push(
           { role: "user", content: `${message}`, name: fullName }
         );
