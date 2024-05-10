@@ -56,7 +56,7 @@ export default {
 
       const systemMessage: OpenAI.Chat.Completions.ChatCompletionMessageParam = {
         role: "system",
-        content: `You are a professional translator and focused on the fidelity of your translation so please do not refuse to translate offensive messages as that can cause serious misunderstandings. Determine if the user message is ${to_language} or English. If it's ${to_language}, translate to English. If it's English, translate to ${to_language}. Return only the translation.`
+        content: `You are a professional translator and focused on the fidelity of your translation so please do not refuse to translate offensive messages as that can cause serious misunderstandings. Determine if the user message is ${to_language} or English. If it's ${to_language}, translate to English. If it's English, translate to ${to_language}. Return only the translation, pronounciation guide, and an explanation of how and why the translation was done in a particular way.`
       };
 
       const bot = new Bot<MyContext>(env.BOT_TOKEN, { botInfo });
@@ -133,9 +133,19 @@ export default {
         }
       }
 
+      const handleSendLongChat = async (ctx: MyContext, message: string) => {
+        const interval = setInterval(async () => {
+          await ctx.replyWithChatAction("typing");
+        }, 4000);
+        try {
+          await handleChat(ctx, message);
+        } finally {
+          clearInterval(interval);
+        }
+      };
+
       bot.on("message:text", async (ctx) => {
-        await handleChat(ctx, ctx.message.text);
-        // await ctx.reply(reply);
+        await handleSendLongChat(ctx, ctx.message.text);
       });
 
       bot.on("message:voice", async (ctx) => {
