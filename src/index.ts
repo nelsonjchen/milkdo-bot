@@ -149,6 +149,17 @@ export default {
         }
       };
 
+      bot.on("message:photo", async (ctx) => {
+        console.log("Received photo message", {
+          message: ctx.message.text,
+          from: ctx.message.from,
+        });
+        // if there's a caption, use that as the message
+        if (ctx.message.caption) {
+          await handleSendLongChat(ctx, ctx.message.caption);
+        }
+      });
+
       bot.on("message:text", async (ctx) => {
         console.log("Received text message", {
           message: ctx.message.text,
