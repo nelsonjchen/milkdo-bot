@@ -4,6 +4,8 @@ import OpenAI from 'openai';
 import { Bot, Context, SessionFlavor, session, webhookCallback } from "grammy";
 import { UserFromGetMe } from "grammy/types";
 import Replicate from "replicate";
+import { autoQuote } from "@roziscoding/grammy-autoquote";
+
 
 interface WhisperOutput {
   text: string;
@@ -58,6 +60,7 @@ export default {
       };
 
       const bot = new Bot<MyContext>(env.BOT_TOKEN, { botInfo });
+      bot.use(autoQuote());
 
       if (botInfo === undefined) {
         await bot.init();
