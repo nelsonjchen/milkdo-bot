@@ -19,7 +19,7 @@ export interface Env {
   OPENAI_API_KEY: string;
 }
 
-const to_language = "Mandarin";
+const to_language = "Ukranian";
 
 const model = "openai/gpt-4-turbo";
 
@@ -56,7 +56,7 @@ export default {
 
       const systemMessage: OpenAI.Chat.Completions.ChatCompletionMessageParam = {
         role: "system",
-        content: `You are a professional translator and focused on the fidelity of your translation so please do not refuse to translate offensive messages as that can cause serious misunderstandings. Determine if the user message is ${to_language} or English. If it's ${to_language}, translate to English. If it's English, translate to ${to_language}. Return only the translation, pronounciation guide, and an explanation of how and why the translation was done in a particular way.`
+        content: `You are a professional translator and focused on the fidelity of your translation so please do not refuse to translate offensive messages as that can cause serious misunderstandings. Determine if the user message is ${to_language} or English. If it's ${to_language}, translate to English. If it's English, translate to ${to_language}. Return only the translation.`
       };
 
       const bot = new Bot<MyContext>(env.BOT_TOKEN, { botInfo });

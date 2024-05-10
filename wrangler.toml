@@ -2,6 +2,9 @@ name = "dialoh-bot"
 main = "src/index.ts"
 compatibility_date = "2024-05-09"
 
+[vars]
+OPENAI_BASE_URL = "https://openrouter.ai/api/v1"
+
 [[d1_databases]]
 binding = "DB" # i.e. available in your Worker on env.DB
 database_name = "dialoh_d1_storage"
