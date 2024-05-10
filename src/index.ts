@@ -177,7 +177,7 @@ export default {
         await handleChat(ctx, messageText);
       });
 
-      const cb = webhookCallback(bot, "cloudflare-mod");
+      const cb = webhookCallback(bot, "cloudflare-mod", "throw", 30000);
       return await cb(request);
     } catch (e: any) {
       console.error(e);
