@@ -151,7 +151,7 @@ export default {
 
       bot.on("message:photo", async (ctx) => {
         console.log("Received photo message", {
-          message: ctx.message.text,
+          message: ctx.message.caption,
           from: ctx.message.from,
         });
         // if there's a caption, use that as the message
