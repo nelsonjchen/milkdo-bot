@@ -18,7 +18,8 @@ export default {
       }
 
       bot.command("start", (ctx) => ctx.reply("Welcome! Up and running."));
-      bot.on("message", (ctx) => ctx.reply("Got another message!"));
+      bot.on("message:text", (ctx) => { ctx.reply("Got a text message!") });
+      bot.on("message:voice", (ctx) => { ctx.reply("Got a voice message!") });
 
       const cb = webhookCallback(bot, "cloudflare-mod");
       console.log("Request received");
