@@ -5,7 +5,7 @@ import { Bot, Context, SessionFlavor, session, webhookCallback } from "grammy";
 import { UserFromGetMe } from "grammy/types";
 import Replicate from "replicate";
 import { autoQuote } from "@roziscoding/grammy-autoquote";
-
+import { retry } from 'ts-retry-promise';
 
 interface WhisperOutput {
   text: string;
@@ -121,11 +121,19 @@ export default {
           ...ctx.session.messages.filter((msg) => msg.role !== "system").slice(-10)
         ];
 
-        const completion = await openai.chat.completions.create({
-          model,
-          messages: ctx.session.messages,
-          temperature: 0,
-        })
+        const completion = await retry(async () => {
+          const completion = await openai.chat.completions.create({
+            model,
+            messages: ctx.session.messages,
+            temperature: 0,
+
+          });
+          // If no completion.choices, retry
+          if (!completion.choices) {
+            throw new Error("No completion.choices");
+          }
+          return completion;
+        }, { retries: 3 });
         const responded = completion.choices[0].message;
         if (responded.content) {
           const originalContent = responded.content;
@@ -194,9 +202,9 @@ export default {
           batch_size: 64
         };
 
-        const output = await replicate.run(replicateWhisperModel, {
+        const output = await retry(() => replicate.run(replicateWhisperModel, {
           input: replicateInput
-        }) as WhisperOutput;
+        }), {retries: 3}) as WhisperOutput;
 
         const messageText = output.text;
         console.log("Transcribed text: ", messageText);

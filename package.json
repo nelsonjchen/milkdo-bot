@@ -8,6 +8,7 @@
     "grammy": "^1.22.4",
     "openai": "^4.44.0",
     "replicate": "^0.29.4",
+    "ts-retry-promise": "^0.8.0",
     "typescript": "^5.4.5",
     "vitest": "^1.6.0",
     "wrangler": "^3.55.0"
