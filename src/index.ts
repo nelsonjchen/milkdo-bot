@@ -159,6 +159,8 @@ export default {
           message: ctx.message.voice,
           from: ctx.message.from,
         });
+        // Send a typing action
+        await ctx.replyWithChatAction("typing");
         // Get fileID from the voice message
         const fileId = ctx.message.voice.file_id;
         // Get the file URL
