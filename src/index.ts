@@ -81,6 +81,11 @@ export default {
         storage: grammyD1StorageAdapter,
       }))
 
+      bot.command("clearHistory", async (ctx) => {
+        ctx.session.messages = [systemMessage];
+        await ctx.reply("History cleared!");
+      });
+
       const handleChat = async (ctx: MyContext, transcribedText: string | undefined) => {
         let message: string;
         if (transcribedText) {
