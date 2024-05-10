@@ -82,8 +82,9 @@ export default {
       }))
 
       bot.command("clearHistory", async (ctx) => {
+        const oldLength = ctx.session.messages.length;
         ctx.session.messages = [systemMessage];
-        await ctx.reply("History cleared!");
+        await ctx.reply("History cleared! Previous length: " + oldLength);
       });
 
       const handleChat = async (ctx: MyContext, transcribedText: string | undefined) => {
