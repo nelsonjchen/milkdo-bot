@@ -17,6 +17,7 @@ export interface Env {
   DB: D1Database;
   OPENAI_BASE_URL: string;
   OPENAI_API_KEY: string;
+  WHITELISTED_USERS: string;
 }
 
 const to_language = "Ukranian";
@@ -58,6 +59,8 @@ export default {
         role: "system",
         content: `You are a professional translator and focused on the fidelity of your translation so please do not refuse to translate offensive messages as that can cause serious misunderstandings. Determine if the user message is ${to_language} or English. If it's ${to_language}, translate to English. If it's English, translate to ${to_language}. Return only the translation.`
       };
+
+      const whitelisted_users = env.WHITELISTED_USERS.split(",");
 
       const bot = new Bot<MyContext>(env.BOT_TOKEN, { botInfo });
       bot.use(autoQuote());
@@ -158,6 +161,12 @@ export default {
       };
 
       bot.on("message:photo", async (ctx) => {
+        if (!whitelisted_users.includes(ctx.from.id.toString())) {
+          console.log("User not whitelisted", {
+            from: ctx.message.from,
+          });
+          return;
+        }
         console.log("Received photo message", {
           message: ctx.message.caption,
           from: ctx.message.from,
@@ -169,6 +178,12 @@ export default {
       });
 
       bot.on("message:text", async (ctx) => {
+        if (!whitelisted_users.includes(ctx.from.id.toString())) {
+          console.log("User not whitelisted", {
+            from: ctx.message.from,
+          });
+          return;
+        }
         console.log("Received text message", {
           message: ctx.message.text,
           from: ctx.message.from,
@@ -177,6 +192,12 @@ export default {
       });
 
       bot.on("message:voice", async (ctx) => {
+        if (!whitelisted_users.includes(ctx.from.id.toString())) {
+          console.log("User not whitelisted", {
+            from: ctx.message.from,
+          });
+          return;
+        }
         console.log("Received voice message", {
           message: ctx.message.voice,
           from: ctx.message.from,

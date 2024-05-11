@@ -4,6 +4,7 @@ compatibility_date = "2024-05-09"
 
 [vars]
 OPENAI_BASE_URL = "https://openrouter.ai/api/v1"
+WHITELISTED_USERS= "1981626205,1372260897,6856908389"
 
 [[d1_databases]]
 binding = "DB" # i.e. available in your Worker on env.DB
