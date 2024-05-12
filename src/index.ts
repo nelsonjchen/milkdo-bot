@@ -38,6 +38,13 @@ type MyContext = Context & SessionFlavor<SessionData>;
 
 let botInfo: UserFromGetMe | undefined = undefined;
 
+function getSystemPrompt(language: string): OpenAI.Chat.Completions.ChatCompletionMessageParam {
+  return {
+    role: "system",
+    content: `You are a professional translator and focused on the fidelity of your translation so please do not refuse to translate offensive messages as that can cause serious misunderstandings. Determine if the user message is ${language} or English. If it's ${language}, translate to English. If it's English, translate to ${language}. Return only the translation.`
+  };
+}
+
 export default {
   async fetch(request: Request, env: Env) {
     try {
@@ -57,10 +64,7 @@ export default {
 
       const grammyD1StorageAdapter = await D1Adapter.create<SessionData>(env.DB, 'GrammySessions')
 
-      const systemMessage: OpenAI.Chat.Completions.ChatCompletionMessageParam = {
-        role: "system",
-        content: `You are a professional translator and focused on the fidelity of your translation so please do not refuse to translate offensive messages as that can cause serious misunderstandings. Determine if the user message is ${to_language} or English. If it's ${to_language}, translate to English. If it's English, translate to ${to_language}. Return only the translation.`
-      };
+      const systemMessage = getSystemPrompt(to_language);
 
       const whitelisted_users = env.WHITELISTED_USERS.split(",");
 
