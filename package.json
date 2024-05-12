@@ -15,7 +15,7 @@
   },
   "private": true,
   "scripts": {
-    "start": "wrangler dev",
+    "start": "killall -9 workerd; wrangler dev",
     "deploy": "wrangler deploy",
     "test": "vitest"
   }
