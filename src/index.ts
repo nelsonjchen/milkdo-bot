@@ -6,6 +6,7 @@ import { UserFromGetMe } from "grammy/types";
 import Replicate from "replicate";
 import { autoQuote } from "@roziscoding/grammy-autoquote";
 import { retry } from 'ts-retry-promise';
+import { QueueRetryBatch } from '@cloudflare/workers-types/experimental';
 
 interface WhisperOutput {
   text: string;
@@ -18,6 +19,7 @@ export interface Env {
   OPENAI_BASE_URL: string;
   OPENAI_API_KEY: string;
   WHITELISTED_USERS: string;
+  DIALOH_QUEUE: Queue<any>;
 }
 
 const to_language = "Ukranian";
@@ -91,6 +93,9 @@ export default {
       });
 
       const handleChat = async (ctx: MyContext, transcribedText: string | undefined) => {
+        console.log("sending to dialoh queue")
+        await env.DIALOH_QUEUE.send({ messages: ctx.session.messages });
+        console.log("sent to dialoh queue")
         let message: string;
         if (transcribedText) {
           message = transcribedText;
@@ -238,5 +243,10 @@ export default {
       console.error(e);
       return new Response(e.message);
     }
+  },
+
+  async queue(batch: any, env: Env): Promise<void> {
+    let messages = JSON.stringify(batch.messages);
+    console.log(`consumed from our queue: ${messages}`);
   },
 }
