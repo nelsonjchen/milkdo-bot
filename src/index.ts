@@ -22,7 +22,7 @@ export interface Env {
 
 const to_language = "Ukranian";
 
-const model = "openai/gpt-4-turbo";
+const model = "meta-llama/llama-3-70b-instruct";
 
 const replicateWhisperModel = "vaibhavs10/incredibly-fast-whisper:3ab86df6c8f54c11309d4d1f930ac292bad43ace52d10c80d87eb258b3c9f79c"
 
