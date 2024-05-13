@@ -1,6 +1,6 @@
 import { D1Database } from '@cloudflare/workers-types'
 import OpenAI from 'openai';
-import { Bot, Context, Filter, SessionFlavor, matchFilter, session, webhookCallback } from "grammy";
+import { Bot, Context, Filter, matchFilter, webhookCallback } from "grammy";
 import { UserFromGetMe } from "grammy/types";
 import Replicate from "replicate";
 import { autoQuote } from "@roziscoding/grammy-autoquote";
