@@ -10,3 +10,19 @@ WHITELISTED_USERS= "1981626205,1372260897,6856908389"
 binding = "DB" # i.e. available in your Worker on env.DB
 database_name = "dialoh_d1_storage"
 database_id = "078cb3d3-2413-4a6e-a071-a3dcbc1c0132"
+
+[[queues.producers]]
+queue = "dialoh-bot"
+binding = "QUEUE"
+
+[[queues.consumers]]
+queue = "dialoh-bot"
+max_batch_timeout = 1
+
+[[durable_objects.bindings]]
+name = "CHAT_DO"
+class_name = "ChatDurableObject"
+
+[[migrations]]
+tag = "v1" # Should be unique for each entry
+new_classes = ["ChatDurableObject"] # Array of new classes
