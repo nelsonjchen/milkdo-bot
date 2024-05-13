@@ -17,6 +17,7 @@ binding = "QUEUE"
 
 [[queues.consumers]]
 queue = "dialoh-bot"
+max_batch_timeout = 1
 
 [[durable_objects.bindings]]
 name = "CHAT_DO"
