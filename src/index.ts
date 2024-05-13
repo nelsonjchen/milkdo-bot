@@ -85,9 +85,10 @@ export default {
           await ctx.reply("Please provide a language!");
           return;
         }
-        await env.CHAT_DO.get(env.CHAT_DO.idFromName(ctx.chat.id.toString())).setToLanguage(language);
+        const chatDo = await env.CHAT_DO.get(env.CHAT_DO.idFromName(ctx.chat.id.toString()));
+        await chatDo.setToLanguage(language);
         // Clear the history
-        await env.CHAT_DO.get(env.CHAT_DO.idFromName(ctx.chat.id.toString())).clearHistory();
+        await chatDo.clearHistory();
         await ctx.reply("Language set to: " + language);
       });
 
