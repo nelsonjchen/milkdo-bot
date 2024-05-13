@@ -203,7 +203,14 @@ export default {
       const responded = completion.choices[0].message;
       if (responded.content) {
         const originalContent = responded.content;
-        ctx.reply(originalContent);
+        ctx.reply(
+          originalContent,
+          {
+            reply_parameters: {
+              message_id: ctx.message.message_id,
+            }
+          }
+        );
         await doInstance.pushMessage(responded);
         responded.content = `${responded.content}`;
       } else {
