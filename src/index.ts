@@ -336,6 +336,7 @@ export class ChatDurableObject extends DurableObject<Env> {
 
   async setToLanguage(language: string): Promise<void> {
     await this.ctx.storage.put("to_language", language);
+    await this.clearHistory();
   }
 
   async getToLanguage(): Promise<string> {
