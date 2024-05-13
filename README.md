@@ -18,7 +18,7 @@ Commands:
 Requires a Workers Paid plan to run on Cloudflare Workers. Once it's there though, it's pretty infinitely scalable.
 
 Requires an OpenRouter OpenAI API compatible API base URL and API key to be set in the environment variables.
-It uses GPT-3.5 model as it actually seems to follow instructions than open source models.
+Uses whatever the best model is currently available.
 
 Requires a Replicate.com key for voice transcription using Whisper 3.
 This allows transcription of voice messages to text in any supported Whisper 3 language.
