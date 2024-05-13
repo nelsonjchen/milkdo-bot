@@ -29,7 +29,7 @@ export interface Env {
 
 const default_to_language = "Ukranian";
 
-const model = "openai/gpt-3.5-turbo-0125";
+const model = "openai/gpt-3.5-turbo";
 
 const replicateWhisperModel = "vaibhavs10/incredibly-fast-whisper:3ab86df6c8f54c11309d4d1f930ac292bad43ace52d10c80d87eb258b3c9f79c"
 
