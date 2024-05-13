@@ -1,8 +1,10 @@
 # Dialoh Bot
 
-A bot to help me converse with Ukrainian-speaking friends.
+Serverless [grammy.js](https://grammy.dev/) bot to help me converse with Ukrainian-speaking friends.
 
 Whitelisted to only respond to messages from a specific list of users.
+
+Runs on Cloudflare Workers to take advantage of their reliable and scalable infrastructure.
 
 ## Usage
 
