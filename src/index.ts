@@ -313,7 +313,9 @@ export class ChatDurableObject extends DurableObject<Env> {
   }
 
   async getMessages(): Promise<ChatMessageParam[]> {
-    let messages = await this.ctx.storage.get<ChatMessageParam[]>("messages") || [];
+    let messages = await this.ctx.storage.get<ChatMessageParam[]>("messages") || [
+      getSystemPrompt(await this.getToLanguage())
+    ];
     console.log("Messages Retrieved: ", messages)
     return messages;
   }
