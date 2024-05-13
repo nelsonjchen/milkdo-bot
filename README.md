@@ -10,7 +10,7 @@ Talk to DialohBot on Telegram. You can invite and/or kick the bot into a group c
 
 Commands:
 
-* `/setLanguage <language>` - Set the language of the bot to `<language>` for the conversation.
+* `/setLanguage <language>` - Set the language of the bot to `<language>` for the conversation. Defaults to Ukrainian if not set.
 * `/resetHistory` - Reset the conversation history in the bot. Sometimes the bot gets stuck or goes wild and needs a reset.
 
 ## Deployment
