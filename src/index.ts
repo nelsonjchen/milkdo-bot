@@ -259,7 +259,13 @@ export default {
     const messageFilter = matchFilter("message");
 
     for (let message of batch.messages) {
-      const context = message.body.context;
+      const contextJson = message.body.context;
+      // Rehydrate Context
+      const context = new Context(
+        contextJson.update,
+        bot.api,
+        contextJson.me,
+      );
       // check if the whitelist user is in the list
       if (messageFilter(context)) {
         if (!whitelisted_users.includes(context.from.id.toString())) {

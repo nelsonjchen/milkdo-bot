@@ -17,3 +17,11 @@ binding = "QUEUE"
 
 [[queues.consumers]]
 queue = "dialoh-bot"
+
+[[durable_objects.bindings]]
+name = "CHAT_DO"
+class_name = "ChatDurableObject"
+
+[[migrations]]
+tag = "v1" # Should be unique for each entry
+new_classes = ["ChatDurableObject"] # Array of new classes
