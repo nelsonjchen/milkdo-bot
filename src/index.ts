@@ -27,7 +27,7 @@ export interface Env {
   QUEUE: Queue<QueueMessage>;
 }
 
-const to_language = "Ukranian";
+const default_to_language = "Ukranian";
 
 const model = "meta-llama/llama-3-70b-instruct";
 
@@ -79,6 +79,18 @@ export default {
         await ctx.reply("History cleared! Previous length: " + oldLength);
       });
 
+      bot.command("setLanguage", async (ctx) => {
+        const language = ctx.match
+        if (!language) {
+          await ctx.reply("Please provide a language!");
+          return;
+        }
+        await env.CHAT_DO.get(env.CHAT_DO.idFromName(ctx.chat.id.toString())).setToLanguage(language);
+        // Clear the history
+        await env.CHAT_DO.get(env.CHAT_DO.idFromName(ctx.chat.id.toString())).clearHistory();
+        await ctx.reply("Language set to: " + language);
+      });
+
 
       // Handle messages in queue
       bot.on("message:text", async (ctx) => {
@@ -104,7 +116,6 @@ export default {
     env: Env,
     ctx: ExecutionContext
   ): Promise<void> {
-    const systemMessage = getSystemPrompt(to_language);
 
     const whitelisted_users = env.WHITELISTED_USERS.split(",");
 
@@ -295,7 +306,7 @@ export class ChatDurableObject extends DurableObject<Env> {
       return 0;
     }
     await this.ctx.storage.put("messages", [
-      getSystemPrompt(to_language)
+      getSystemPrompt(await this.getToLanguage())
     ]);
     return lastMessages.length - 1;
   }
@@ -312,10 +323,21 @@ export class ChatDurableObject extends DurableObject<Env> {
     // If there's more than 10 messages, keep the last 10.
     // Don't remove the system message!
     if (messages.length > 10) {
-      messages = [getSystemPrompt(to_language), ...messages.slice(-10)];
+      messages = [
+        getSystemPrompt(await this.getToLanguage()),
+        ...messages.slice(-10)
+      ];
     }
     await this.ctx.storage.put("messages", messages);
     console.log("Messages Updated: ", messages)
     return messages;
+  }
+
+  async setToLanguage(language: string): Promise<void> {
+    await this.ctx.storage.put("to_language", language);
+  }
+
+  async getToLanguage(): Promise<string> {
+    return await this.ctx.storage.get<string>("to_language") || default_to_language;
   }
 }
