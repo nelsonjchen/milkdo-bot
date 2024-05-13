@@ -67,7 +67,7 @@ export default {
       }
 
       bot.command("start", (ctx) => ctx.reply(
-        "Hello! I'm here to translate!"
+        "Hello! I'm here to translate! Default language is Ukranian. Use /setLanguage to change it."
       ));
 
       // This runs fast enough to not need to be queued
