@@ -272,7 +272,7 @@ export default {
 
       const messageText = output.text;
       console.log("Transcribed text: ", messageText);
-      await handleChat(ctx, messageText);
+      await handleSendLongChat(ctx, messageText);
     }
 
     const messageFilter = matchFilter("message");
