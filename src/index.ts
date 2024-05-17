@@ -374,18 +374,19 @@ export class ChatDurableObject extends DurableObject<Env> {
   }
 
   async pushMessage(message: ChatMessageParam): Promise<ChatMessageParam[]> {
+    const keepLength = 20;
     let messages = await this.getMessages();
     messages.push(message);
-    // If there's more than 10 messages, keep the last 10.
+    // If there's more than the limit messages, keep the last limit.
     // Don't remove the system message!
-    if (messages.length > 10) {
+    if (messages.length > keepLength) {
       messages = [
         getSystemPrompt({
           learning_mode: await this.getLearningMode(),
           from_language: await this.getToLanguage(),
           to_language: await this.getToLanguage()
         }),
-        ...messages.slice(-10)
+        ...messages.slice(-keepLength)
       ];
     }
     await this.ctx.storage.put("messages", messages);
