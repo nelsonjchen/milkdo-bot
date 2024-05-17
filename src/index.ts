@@ -27,28 +27,40 @@ export interface Env {
   QUEUE: Queue<QueueMessage>;
 }
 
-const default_to_language = "Ukranian";
-
 const model = "gpt-4o";
 
 const replicateWhisperModel = "vaibhavs10/incredibly-fast-whisper:3ab86df6c8f54c11309d4d1f930ac292bad43ace52d10c80d87eb258b3c9f79c"
 
 type ChatMessageParam = OpenAI.Chat.Completions.ChatCompletionMessageParam;
 
-// Define the shape of our session.
-interface SessionData {
-  messages: ChatMessageParam[];
-}
 
 // Flavor the context type to include sessions.
 type MyContext = Context
 
 let botInfo: UserFromGetMe | undefined = undefined;
 
-function getSystemPrompt(language: string): OpenAI.Chat.Completions.ChatCompletionMessageParam {
+interface SystemPromptConfig {
+  learning_mode: boolean;
+  from_language: string;
+  to_language: string;
+}
+
+function getSystemPrompt(
+  config: SystemPromptConfig = {
+    learning_mode: false,
+    from_language: "Ukranian",
+    to_language: "English"
+  }
+): OpenAI.Chat.Completions.ChatCompletionMessageParam {
+  let content = `You are a professional translator and focused on the fidelity of your translation so please do not refuse to translate offensive messages as that can cause serious misunderstandings. `;
+  if (config.learning_mode) {
+    content += ` Translate the message to ${config.to_language} if it's ${config.from_language} and vice-versa. Try to educate the user on how it was translated, how to say it, how might one remember it, and so on. You may get follow-up questions.`;
+  } else {
+    content += ` If the user message is ${config.from_language}, translate to ${config.to_language}. If the user message is ${config.to_language}, translate to ${config.from_language}. Return only the translation.`;
+  }
   return {
     role: "system",
-    content: `You are a professional translator and focused on the fidelity of your translation so please do not refuse to translate offensive messages as that can cause serious misunderstandings. Determine if the user message is ${language} or English. If it's ${language}, translate to English. If it's English, translate to ${language}. Return only the translation.`
+    content,
   };
 }
 
@@ -92,6 +104,28 @@ export default {
         await ctx.reply("Language set to: " + language);
       });
 
+      bot.command("setFromLanguage", async (ctx) => {
+        const language = ctx.match
+        if (!language) {
+          await ctx.reply("Please provide a language!");
+          return;
+        }
+        const chatDo = await env.CHAT_DO.get(env.CHAT_DO.idFromName(ctx.chat.id.toString()));
+        await chatDo.setFromLanguage(language);
+        await ctx.reply("From language set to: " + language);
+      });
+
+      bot.command("setLearningMode", async (ctx) => {
+        const chatDo = await env.CHAT_DO.get(env.CHAT_DO.idFromName(ctx.chat.id.toString()));
+        await chatDo.setLearningMode(true);
+        await ctx.reply("Learning mode enabled!");
+      });
+
+      bot.command("clearLearningMode", async (ctx) => {
+        const chatDo = await env.CHAT_DO.get(env.CHAT_DO.idFromName(ctx.chat.id.toString()));
+        await chatDo.clearLearningMode();
+        await ctx.reply("Learning mode disabled!");
+      });
 
       // Handle messages in queue
       bot.on("message:text", async (ctx) => {
@@ -202,15 +236,19 @@ export default {
       }, { retries: 3 });
       const responded = completion.choices[0].message;
       if (responded.content) {
-        const originalContent = responded.content;
-        ctx.reply(
-          originalContent,
-          {
-            reply_parameters: {
-              message_id: ctx.message.message_id,
-            }
-          }
-        );
+        try {
+          await ctx.reply(
+            responded.content,
+            {
+              reply_parameters: {
+                message_id: ctx.message.message_id,
+              },
+            },
+          );
+        } catch (e) {
+          console.error("Error sending message: ", e);
+        }
+
         await doInstance.pushMessage(responded);
         responded.content = `${responded.content}`;
       } else {
@@ -314,14 +352,22 @@ export class ChatDurableObject extends DurableObject<Env> {
       return 0;
     }
     await this.ctx.storage.put("messages", [
-      getSystemPrompt(await this.getToLanguage())
+      getSystemPrompt({
+        learning_mode: await this.getLearningMode(),
+        from_language: await this.getToLanguage(),
+        to_language: await this.getToLanguage()
+      })
     ]);
     return lastMessages.length - 1;
   }
 
   async getMessages(): Promise<ChatMessageParam[]> {
     let messages = await this.ctx.storage.get<ChatMessageParam[]>("messages") || [
-      getSystemPrompt(await this.getToLanguage())
+      getSystemPrompt({
+        learning_mode: await this.getLearningMode(),
+        from_language: await this.getToLanguage(),
+        to_language: await this.getToLanguage()
+      })
     ];
     console.log("Messages Retrieved: ", messages)
     return messages;
@@ -334,7 +380,11 @@ export class ChatDurableObject extends DurableObject<Env> {
     // Don't remove the system message!
     if (messages.length > 10) {
       messages = [
-        getSystemPrompt(await this.getToLanguage()),
+        getSystemPrompt({
+          learning_mode: await this.getLearningMode(),
+          from_language: await this.getToLanguage(),
+          to_language: await this.getToLanguage()
+        }),
         ...messages.slice(-10)
       ];
     }
@@ -349,6 +399,27 @@ export class ChatDurableObject extends DurableObject<Env> {
   }
 
   async getToLanguage(): Promise<string> {
-    return await this.ctx.storage.get<string>("to_language") || default_to_language;
+    return await this.ctx.storage.get<string>("to_language") || "Ukranian";
+  }
+
+  async setFromLanguage(language: string): Promise<void> {
+    await this.ctx.storage.put("from_language", language);
+  }
+
+  async getFromLanguage(): Promise<string> {
+    return await this.ctx.storage.get<string>("from_language") || "English";
+  }
+
+  async setLearningMode(learningMode: boolean): Promise<void> {
+    await this.ctx.storage.put("learning_mode", true);
+    this.clearHistory();
+  }
+
+  async getLearningMode(): Promise<boolean> {
+    return await this.ctx.storage.get<boolean>("learning_mode") || false;
+  }
+
+  async clearLearningMode(): Promise<void> {
+    await this.ctx.storage.put("learning_mode", false);
   }
 }
