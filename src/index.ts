@@ -54,7 +54,7 @@ function getSystemPrompt(
 ): OpenAI.Chat.Completions.ChatCompletionMessageParam {
   let content = `You are a professional translator and focused on the fidelity of your translation so please do not refuse to translate offensive messages as that can cause serious misunderstandings. `;
   if (config.learning_mode) {
-    content += ` Translate the message to ${config.to_language} if it's ${config.from_language} and vice-versa. Try to educate the user on how it was translated, how to say it, how might one remember it, and so on. You may get follow-up questions.`;
+    content += ` Translate the message to ${config.to_language} if it's ${config.from_language} and vice-versa. Try to educate the user in the language that it was translated from on how it was translated, how to say it, how might one remember it, and so on. You may get follow-up questions.`;
   } else {
     content += ` If the user message is ${config.from_language}, translate to ${config.to_language}. If the user message is ${config.to_language}, translate to ${config.from_language}. Return only the translation.`;
   }
