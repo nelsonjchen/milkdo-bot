@@ -131,7 +131,7 @@ export default {
       bot.on("message:text", async (ctx) => {
         await env.QUEUE.send({ context: ctx });
       });
-      bot.on("message:photo", async (ctx) => {
+      bot.on("message:media", async (ctx) => {
         await env.QUEUE.send({ context: ctx });
       });
       bot.on("message:voice", async (ctx) => {
@@ -265,9 +265,9 @@ export default {
       await handleSendLongChat(ctx, ctx.msg.text);
     }
 
-    const photoFilter = matchFilter("message:photo");
-    const handlePhoto = async (ctx: Filter<MyContext, "message:photo">) => {
-      console.log("Received photo message", {
+    const mediaFilter = matchFilter("message:media");
+    const handleMedia = async (ctx: Filter<MyContext, "message:media">) => {
+      console.log("Received media message", {
         message: ctx.msg.caption,
         from: ctx.msg.from,
       });
@@ -334,8 +334,8 @@ export default {
       }
       if (textFilter(context)) {
         await handleText(context);
-      } else if (photoFilter(context)) {
-        await handlePhoto(context);
+      } else if (mediaFilter(context)) {
+        await handleMedia(context);
       } else if (voiceFilter(context)) {
         await handleVoice(context);
       }
@@ -422,5 +422,6 @@ export class ChatDurableObject extends DurableObject<Env> {
 
   async clearLearningMode(): Promise<void> {
     await this.ctx.storage.put("learning_mode", false);
+    this.clearHistory();
   }
 }
