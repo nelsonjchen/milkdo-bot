@@ -374,7 +374,7 @@ export class ChatDurableObject extends DurableObject<Env> {
   }
 
   async pushMessage(message: ChatMessageParam): Promise<ChatMessageParam[]> {
-    const keepLength = 10;
+    const keepLength = 20;
     let messages = await this.getMessages();
     messages.push(message);
     // If there's more than the limit messages, keep the last limit.
