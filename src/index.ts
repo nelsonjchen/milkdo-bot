@@ -56,7 +56,7 @@ function getSystemPrompt(
   if (config.learning_mode) {
     content += ` Translate the message to ${config.to_language} if it's ${config.from_language} and vice-versa. Try to educate the user in the language that it was translated from on how it was translated, how to say it, how might one remember it, and so on. You may get follow-up questions.`;
   } else {
-    content += ` If the user message from a participant is ${config.from_language}, translate to ${config.to_language}. If the user message from a participant is ${config.to_language}, translate to ${config.from_language}. Return only the translation as you are not a party in the conversation and are there just to help translate. Don't make a mistake and just repeat the message to be translatedbump!`;
+    content += ` If the user message from a participant is ${config.from_language}, translate to ${config.to_language}. If the user message from a participant is ${config.to_language}, translate to ${config.from_language}. Return only the translation as you are not a party in the conversation and are there just to help translate. Don't make a mistake and just repeat the message to be translated or reply to the message to be translated itself!`;
   }
   return {
     role: "system",
