@@ -6,6 +6,8 @@ Whitelisted to only respond to messages from a specific list of users.
 
 Runs on Cloudflare Workers to take advantage of their reliable and scalable infrastructure.
 
+Idea is to use the conversational data model to better translate *conversations* and not just phrases.
+
 ## Usage
 
 Talk to DialohBot on Telegram. You can invite and/or kick the bot into a group chat, and it will respond to messages from the users in the whitelist to translate.
