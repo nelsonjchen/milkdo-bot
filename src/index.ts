@@ -40,24 +40,15 @@ type MyContext = Context
 let botInfo: UserFromGetMe | undefined = undefined;
 
 interface SystemPromptConfig {
-  learning_mode: boolean;
-  from_language: string;
-  to_language: string;
+  conversation_languages: string;
 }
 
 function getSystemPrompt(
   config: SystemPromptConfig = {
-    learning_mode: false,
-    from_language: "Ukranian",
-    to_language: "English"
+    conversation_languages: "English, Ukranian",
   }
 ): OpenAI.Chat.Completions.ChatCompletionMessageParam {
-  let content = `You are a professional translator and focused on the fidelity of your translation so please do not refuse to translate offensive messages as that can cause serious misunderstandings. `;
-  if (config.learning_mode) {
-    content += ` Translate the message to ${config.to_language} if it's ${config.from_language} and vice-versa. Try to educate the user in the language that it was translated from on how it was translated, how to say it, how might one remember it, and so on. You may get follow-up questions.`;
-  } else {
-    content += ` If the user message from a participant is ${config.from_language}, translate to ${config.to_language}. If the user message from a participant is ${config.to_language}, translate to ${config.from_language}. Return only the translation as you are not a party in the conversation and are there just to help translate. Don't make a mistake and just repeat the message to be translated or reply to the message to be translated itself!`;
-  }
+  let content = `You are a translator in a conversation with the following languages: [${config.conversation_languages}]. Translate messages from the speakers to the other language(s). Do not interject or participate in the conversation itself. In your message, don't repeat the original text's or the original text's language. Return the translation(s) without prefixing them with the language name, making it look unclean. Instead of prefixing the the translations, separate the translations of the message by a markdown horizontal rule since users can recognize the language. Of course, separation only applies if there are multiple translations.`;
   return {
     role: "system",
     content,
@@ -79,7 +70,7 @@ export default {
       }
 
       bot.command("start", (ctx) => ctx.reply(
-        "Hello! I'm here to translate! Default language is Ukranian. Use /setLanguage to change it."
+        "Hello! I'm here to translate! Default language is \"English, Ukranian\". Use /setLanguages to change that."
       ));
 
       // This runs fast enough to not need to be queued
@@ -91,40 +82,15 @@ export default {
         await ctx.reply("History cleared! Previous length: " + oldLength);
       });
 
-      bot.command("setLanguage", async (ctx) => {
-        const language = ctx.match
-        if (!language) {
-          await ctx.reply("Please provide a language!");
+      bot.command("setLanguages", async (ctx) => {
+        const languages = ctx.match
+        if (!languages) {
+          await ctx.reply("Please provide languages separated with a comma!");
           return;
         }
         const chatDo = await env.CHAT_DO.get(env.CHAT_DO.idFromName(ctx.chat.id.toString()));
-        await chatDo.setToLanguage(language);
-        // Clear the history
-        await chatDo.clearHistory();
-        await ctx.reply("Language set to: " + language);
-      });
-
-      bot.command("setFromLanguage", async (ctx) => {
-        const language = ctx.match
-        if (!language) {
-          await ctx.reply("Please provide a language!");
-          return;
-        }
-        const chatDo = await env.CHAT_DO.get(env.CHAT_DO.idFromName(ctx.chat.id.toString()));
-        await chatDo.setFromLanguage(language);
-        await ctx.reply("From language set to: " + language);
-      });
-
-      bot.command("setLearningMode", async (ctx) => {
-        const chatDo = await env.CHAT_DO.get(env.CHAT_DO.idFromName(ctx.chat.id.toString()));
-        await chatDo.setLearningMode(true);
-        await ctx.reply("Learning mode enabled!");
-      });
-
-      bot.command("clearLearningMode", async (ctx) => {
-        const chatDo = await env.CHAT_DO.get(env.CHAT_DO.idFromName(ctx.chat.id.toString()));
-        await chatDo.clearLearningMode();
-        await ctx.reply("Learning mode disabled!");
+        await chatDo.setConversationLanguages(languages);
+        await ctx.reply("Languages set to: " + languages);
       });
 
       // Handle messages in queue
@@ -353,9 +319,7 @@ export class ChatDurableObject extends DurableObject<Env> {
     }
     await this.ctx.storage.put("messages", [
       getSystemPrompt({
-        learning_mode: await this.getLearningMode(),
-        from_language: await this.getToLanguage(),
-        to_language: await this.getToLanguage()
+        conversation_languages: await this.getConversationLanguages()
       })
     ]);
     return lastMessages.length - 1;
@@ -364,9 +328,7 @@ export class ChatDurableObject extends DurableObject<Env> {
   async getMessages(): Promise<ChatMessageParam[]> {
     let messages = await this.ctx.storage.get<ChatMessageParam[]>("messages") || [
       getSystemPrompt({
-        learning_mode: await this.getLearningMode(),
-        from_language: await this.getToLanguage(),
-        to_language: await this.getToLanguage()
+        conversation_languages: await this.getConversationLanguages()
       })
     ];
     console.log("Messages Retrieved: ", messages)
@@ -382,9 +344,7 @@ export class ChatDurableObject extends DurableObject<Env> {
     if (messages.length > keepLength) {
       messages = [
         getSystemPrompt({
-          learning_mode: await this.getLearningMode(),
-          from_language: await this.getToLanguage(),
-          to_language: await this.getToLanguage()
+          conversation_languages: await this.getConversationLanguages()
         }),
         ...messages.slice(-keepLength)
       ];
@@ -394,34 +354,28 @@ export class ChatDurableObject extends DurableObject<Env> {
     return messages;
   }
 
-  async setToLanguage(language: string): Promise<void> {
-    await this.ctx.storage.put("to_language", language);
-    await this.clearHistory();
+  async getConversationLanguages(): Promise<string> {
+    const clang = await this.ctx.storage.get<string>("conversation_languages")
+    // If there's no conversation languages, check if the previous schema languages are still there
+    if (!clang) {
+      this.clearHistory();
+      const fromLanguage = await this.getFromLanguage();
+      const toLanguage = await this.getToLanguage();
+      return `${fromLanguage}, ${toLanguage}`;
+    }
+    return clang;
+  }
+
+  async setConversationLanguages(languages: string): Promise<void> {
+    await this.ctx.storage.put("conversation_languages", languages);
+    this.clearHistory();
   }
 
   async getToLanguage(): Promise<string> {
     return await this.ctx.storage.get<string>("to_language") || "Ukranian";
   }
 
-  async setFromLanguage(language: string): Promise<void> {
-    await this.ctx.storage.put("from_language", language);
-  }
-
   async getFromLanguage(): Promise<string> {
     return await this.ctx.storage.get<string>("from_language") || "English";
-  }
-
-  async setLearningMode(learningMode: boolean): Promise<void> {
-    await this.ctx.storage.put("learning_mode", true);
-    this.clearHistory();
-  }
-
-  async getLearningMode(): Promise<boolean> {
-    return await this.ctx.storage.get<boolean>("learning_mode") || false;
-  }
-
-  async clearLearningMode(): Promise<void> {
-    await this.ctx.storage.put("learning_mode", false);
-    this.clearHistory();
   }
 }
