@@ -276,6 +276,15 @@ export default {
 
       const messageText = output.text;
       console.log("Transcribed text: ", messageText);
+      // Reply with transcription, prefixed with 🎙️
+      await ctx.reply(
+        `🎙️: ${messageText}`,
+        {
+          reply_parameters: {
+            message_id: ctx.message.message_id,
+          },
+        },
+      );
       await handleSendLongChat(ctx, messageText);
     }
 
