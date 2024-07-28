@@ -40,15 +40,13 @@ type MyContext = Context
 let botInfo: UserFromGetMe | undefined = undefined;
 
 interface SystemPromptConfig {
-  conversation_languages: string;
 }
 
 function getSystemPrompt(
   config: SystemPromptConfig = {
-    conversation_languages: "English, Ukranian",
   }
 ): OpenAI.Chat.Completions.ChatCompletionMessageParam {
-  let content = `You are a translator in a conversation with the following languages: [${config.conversation_languages}]. Translate messages from the speakers to the other language(s). Do not interject or participate in the conversation itself. In your message, don't repeat the original text's or the original text's language. Return the translation(s) without prefixing them with the language name, making it look unclean. Instead of prefixing the the translations, separate the translations of the message by a markdown horizontal rule since users can recognize the language. Of course, separation only applies if there are multiple translations.`;
+  let content = `You are a to-do list assistance bot.`;
   return {
     role: "system",
     content,
@@ -70,7 +68,7 @@ export default {
       }
 
       bot.command("start", (ctx) => ctx.reply(
-        "Hello! I'm here to translate! Default language is \"English, Ukranian\". Use /setLanguages to change that."
+        "Hello! I'm here to help organize "
       ));
 
       // This runs fast enough to not need to be queued
@@ -80,17 +78,6 @@ export default {
         // Pass it in the context
         const oldLength = await env.CHAT_DO.get(doId).clearHistory();
         await ctx.reply("History cleared! Previous length: " + oldLength);
-      });
-
-      bot.command("setLanguages", async (ctx) => {
-        const languages = ctx.match
-        if (!languages) {
-          await ctx.reply("Please provide languages separated with a comma!");
-          return;
-        }
-        const chatDo = await env.CHAT_DO.get(env.CHAT_DO.idFromName(ctx.chat.id.toString()));
-        await chatDo.setConversationLanguages(languages);
-        await ctx.reply("Languages set to: " + languages);
       });
 
       // Handle messages in queue
@@ -156,6 +143,15 @@ export default {
     };
 
     const handleChat = async (ctx: Filter<MyContext, "message">, transcribedText: string | undefined) => {
+      // check if the whitelist user is in the list
+      if (messageFilter(ctx)) {
+        if (!whitelisted_users.includes(ctx.from.id.toString())) {
+          console.log("User not whitelisted, ignoring", {
+            from: ctx.message.from,
+          });
+          return;
+        }
+      }
       let message: string;
       if (transcribedText) {
         message = transcribedText;
@@ -298,15 +294,7 @@ export default {
         bot.api,
         contextJson.me,
       );
-      // check if the whitelist user is in the list
-      if (messageFilter(context)) {
-        if (!whitelisted_users.includes(context.from.id.toString())) {
-          console.log("User not whitelisted, ignoring", {
-            from: context.message.from,
-          });
-          return;
-        }
-      }
+
       if (textFilter(context)) {
         await handleText(context);
       } else if (mediaFilter(context)) {
@@ -327,18 +315,14 @@ export class ChatDurableObject extends DurableObject<Env> {
       return 0;
     }
     await this.ctx.storage.put("messages", [
-      getSystemPrompt({
-        conversation_languages: await this.getConversationLanguages()
-      })
+      getSystemPrompt({})
     ]);
     return lastMessages.length - 1;
   }
 
   async getMessages(): Promise<ChatMessageParam[]> {
     let messages = await this.ctx.storage.get<ChatMessageParam[]>("messages") || [
-      getSystemPrompt({
-        conversation_languages: await this.getConversationLanguages()
-      })
+      getSystemPrompt({})
     ];
     console.log("Messages Retrieved: ", messages)
     return messages;
@@ -353,7 +337,6 @@ export class ChatDurableObject extends DurableObject<Env> {
     if (messages.length > keepLength) {
       messages = [
         getSystemPrompt({
-          conversation_languages: await this.getConversationLanguages()
         }),
         ...messages.slice(-keepLength)
       ];
@@ -363,28 +346,4 @@ export class ChatDurableObject extends DurableObject<Env> {
     return messages;
   }
 
-  async getConversationLanguages(): Promise<string> {
-    const clang = await this.ctx.storage.get<string>("conversation_languages")
-    // If there's no conversation languages, check if the previous schema languages are still there
-    if (!clang) {
-      this.clearHistory();
-      const fromLanguage = await this.getFromLanguage();
-      const toLanguage = await this.getToLanguage();
-      return `${fromLanguage}, ${toLanguage}`;
-    }
-    return clang;
-  }
-
-  async setConversationLanguages(languages: string): Promise<void> {
-    await this.ctx.storage.put("conversation_languages", languages);
-    this.clearHistory();
-  }
-
-  async getToLanguage(): Promise<string> {
-    return await this.ctx.storage.get<string>("to_language") || "Ukranian";
-  }
-
-  async getFromLanguage(): Promise<string> {
-    return await this.ctx.storage.get<string>("from_language") || "English";
-  }
 }
