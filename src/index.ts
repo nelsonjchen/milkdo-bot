@@ -27,7 +27,8 @@ export interface Env {
   QUEUE: Queue<QueueMessage>;
 }
 
-const model = "gpt-4o";
+const model_wake = "gpt-4o";
+const model_process = "gpt-4o";
 
 const replicateWhisperModel = "vaibhavs10/incredibly-fast-whisper:3ab86df6c8f54c11309d4d1f930ac292bad43ace52d10c80d87eb258b3c9f79c"
 
@@ -113,11 +114,21 @@ export default {
       }
     );
 
-    const openai = new OpenAI({
+    // Model used for determining if the message should be actionable
+    const openai_wake = new OpenAI({
       baseURL: env.OPENAI_BASE_URL,
       apiKey: env.OPENAI_API_KEY,
       defaultHeaders: {
-        "X-Title": "DialohBot",
+        "X-Title": "MilkdoWake",
+      },
+    })
+
+    // Model used to process the message
+    const openai_process = new OpenAI({
+      baseURL: env.OPENAI_BASE_URL,
+      apiKey: env.OPENAI_API_KEY,
+      defaultHeaders: {
+        "X-Title": "MilkdoProcess",
       },
     })
 
@@ -184,11 +195,10 @@ export default {
 
 
       const completion = await retry(async () => {
-        const completion = await openai.chat.completions.create({
-          model,
+        const completion = await openai_process.chat.completions.create({
+          model: model_process,
           messages,
           temperature: 0,
-
         });
         // If no completion.choices, retry
         if (!completion.choices) {
