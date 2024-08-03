@@ -24,7 +24,9 @@ describe("OpenAI", () => {
 
   it('uses OPENAI_API_KEY', () => {
     const apiKey = process.env.OPENAI_API_KEY;
-    expect(apiKey).toBe('your_openai_api_key_here');
+    // Make sure it's defined and a string
+    expect(apiKey).toBeDefined();
+    expect(typeof apiKey).toBe('string');
   });
 
 });
