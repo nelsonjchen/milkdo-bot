@@ -1,22 +1,17 @@
-name = "dialoh-bot"
+name = "milkdo-bot"
 main = "src/index.ts"
 compatibility_date = "2024-05-09"
 
 [vars]
 OPENAI_BASE_URL = "https://api.openai.com/v1"
-WHITELISTED_USERS= "1981626205,1372260897,6856908389,6579993926,6902584575,104710131,7168215992,7496783478,534103631"
-
-[[d1_databases]]
-binding = "DB" # i.e. available in your Worker on env.DB
-database_name = "dialoh_d1_storage"
-database_id = "078cb3d3-2413-4a6e-a071-a3dcbc1c0132"
+WHITELISTED_USERS= "1372260897,6856908389"
 
 [[queues.producers]]
-queue = "dialoh-bot"
+queue = "milkdo-bot"
 binding = "QUEUE"
 
 [[queues.consumers]]
-queue = "dialoh-bot"
+queue = "milkdo-bot"
 max_batch_timeout = 1
 
 [[durable_objects.bindings]]
