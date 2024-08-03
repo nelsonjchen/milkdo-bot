@@ -29,4 +29,52 @@ describe("OpenAI", () => {
     expect(typeof apiKey).toBe('string');
   });
 
+  // Run against the real OpenAI API
+  it('should return a response from the OpenAI API', async () => {
+    console.log('OPENAI_API_KEY', process.env.OPENAI_API_KEY);
+    const openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
+    // Tools
+    const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
+      {
+        type: "function",
+        function: {
+          name: "getShoppingList",
+          description: "Returns a list of items on the shopping list with their due dates.",
+        }
+      }
+    ];
+
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      tools,
+      messages: [
+        {
+          role: 'system',
+          content: 'You are a helpful shopping list assistant named Milkdo. You may be called in at any time to help with managing a shopping list.',
+        },
+        {
+          role: 'user',
+          name: 'bob',
+          content: 'What is the purpose of life?',
+        },
+        {
+          role: 'user',
+          name: 'alice',
+          content: 'Eat, drink, and be merry.',
+        },
+        {
+          role: 'user',
+          name: 'alice',
+          content: '@milkdo add wine to the shopping list',
+        },
+      ],
+    });
+    // Output the response, fully, without truncation
+    console.log(JSON.stringify(response, null, 2));
+
+
+  });
+
 });
