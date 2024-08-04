@@ -31,7 +31,7 @@ export interface Env {
   TODOIST_API_TOKEN: string;
 }
 
-const model_process = "gpt-4o-mini	";
+const model_process = "gpt-4o-mini";
 
 const replicateWhisperModel = "vaibhavs10/incredibly-fast-whisper:3ab86df6c8f54c11309d4d1f930ac292bad43ace52d10c80d87eb258b3c9f79c"
 
@@ -186,19 +186,22 @@ export default {
       );
 
       // Does this message need to be processed? Is it mentioning us?
-      if (!message.includes("@Milkdo")) {
-        return;
-      }
+      // if (!message.includes("@Milkdo")) {
+      //   return;
+      // }
 
       const todoistAPI = new TodoistApi(env.TODOIST_API_TOKEN);
 
       const addShoppingListItem = async (item: string, due_date: string): Promise<string> => {
-        todoistAPI.addTask({
+        const task = await todoistAPI.addTask({
           content: item,
           dueString: due_date,
           sectionId: "150049165",
           projectId: "2328224336",
         });
+        if (!task) {
+          throw new Error("No task found");
+        }
         // Add item to the to-do list
         await ctx.reply(`Added "${item}" to the to-do list.`);
         return `Added "${item}" to the to-do list.`;
@@ -263,31 +266,32 @@ export default {
           tool_resp = await addShoppingListItem(item, item_due_date);
           const tool_call_id = tool.id;
           // Add the response to the messages
+          await doInstance.pushMessage(completion.choices[0].message)
           await doInstance.pushMessage(
             { role: "tool", content: tool_resp, tool_call_id }
           );
         }
-      }
-
-      const responded = completion.choices[0].message;
-      if (responded.content) {
-        try {
-          await ctx.reply(
-            responded.content,
-            {
-              reply_parameters: {
-                message_id: ctx.message.message_id,
-              },
-            },
-          );
-        } catch (e) {
-          console.error("Error sending message: ", e);
-        }
-
-        await doInstance.pushMessage(responded);
-        responded.content = `${responded.content}`;
       } else {
-        console.error("No content in bot response!");
+        const responded = completion.choices[0].message;
+        if (responded.content) {
+          try {
+            await ctx.reply(
+              responded.content,
+              {
+                reply_parameters: {
+                  message_id: ctx.message.message_id,
+                },
+              },
+            );
+          } catch (e) {
+            console.error("Error sending message: ", e);
+          }
+
+          await doInstance.pushMessage(responded);
+          responded.content = `${responded.content}`;
+        } else {
+          console.error("No content in bot response!");
+        }
       }
     }
 
@@ -341,7 +345,7 @@ export default {
 
       const output = await retry(() => replicate.run(replicateWhisperModel, {
         input: replicateInput
-      }), {retries: 3}) as WhisperOutput;
+      }), { retries: 3 }) as WhisperOutput;
 
       const messageText = output.text;
       console.log("Transcribed text: ", messageText);
