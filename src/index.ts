@@ -6,6 +6,9 @@ import Replicate from "replicate";
 import { autoQuote } from "@roziscoding/grammy-autoquote";
 import { retry } from 'ts-retry-promise';
 import { DurableObject } from "cloudflare:workers";
+import { TodoistApi } from "@doist/todoist-api-typescript"
+
+
 
 interface WhisperOutput {
   text: string;
@@ -25,6 +28,7 @@ export interface Env {
   WHITELISTED_USERS: string;
   CHAT_DO: DurableObjectNamespace<ChatDurableObject>;
   QUEUE: Queue<QueueMessage>;
+  TODOIST_API_TOKEN: string;
 }
 
 const model_process = "gpt-4o-mini	";
@@ -46,7 +50,7 @@ function getSystemPrompt(
   config: SystemPromptConfig = {
   }
 ): OpenAI.Chat.Completions.ChatCompletionMessageParam {
-  let content = `You are a to-do list assistance bot. For right now, you can only add items to the list sometimes. When you do add items to the list, add them with a nice name, and with a postfix emoji to represent the item. For example, "Milk 🥛", "Organic Strawberries 🍓", "Cheese 🧀", and so on. If no due date is specified, add it for today.`
+  let content = `You are a shopping list assistance bot. For right now, you can only add items to the shopping list. When you do add items to the list, add them with a nice name, and with a postfix emoji to represent the item. For example, "Milk 🥛", "Organic Strawberries 🍓", "Cheese 🧀", and so on. If no due date is specified, add it for today.`
   return {
     role: "system",
     content,
@@ -186,11 +190,55 @@ export default {
         return;
       }
 
-      const completion = await retry(async () => {
+      const todoistAPI = new TodoistApi(env.TODOIST_API_TOKEN);
+
+      const addShoppingListItem = async (item: string, due_date: string): Promise<string> => {
+        todoistAPI.addTask({
+          content: item,
+          dueString: due_date,
+          sectionId: "150049165",
+          projectId: "2328224336",
+        });
+        // Add item to the to-do list
+        await ctx.reply(`Added "${item}" to the to-do list.`);
+        return `Added "${item}" to the to-do list.`;
+      }
+
+      const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
+        {
+          type: "function",
+          function: {
+            name: "addShoppingListItem",
+            description: "Adds an item to the shopping list.",
+            parameters: {
+              type: "object",
+              properties: {
+                name: {
+                  type: "string",
+                  description: "The name of the item to add to the shopping list, postfixed with an emoji to represent the item, e.g. 'Milk 🥛'."
+                },
+                dueDate: {
+                  type: "string",
+                  description: "The due date of the item to add to the shopping list, e.g. 'today', or 'tomorrow'."
+                }
+              },
+              "required": ["name", "dueDate"],
+            },
+          }
+        },
+      ];
+
+      interface AddShoppingListItemArguments {
+        name: string;
+        dueDate: string;
+      }
+
+      let completion = await retry(async () => {
         const completion = await openai_process.chat.completions.create({
           model: model_process,
           messages,
           temperature: 0,
+          tools,
         });
         // If no completion.choices, retry
         if (!completion.choices) {
@@ -198,6 +246,29 @@ export default {
         }
         return completion;
       }, { retries: 3 });
+      let tool_resp: string | undefined;
+      // If there's a tool call, do it
+      if (completion.choices[0].message.tool_calls) {
+        const tool = completion.choices[0].message.tool_calls[0];
+        if (tool.function.name === "addShoppingListItem") {
+          const args = JSON.parse(tool.function.arguments) as AddShoppingListItemArguments;
+          const item = args.name;
+          if (!item) {
+            throw new Error("No item found");
+          }
+          const item_due_date = args.dueDate;
+          if (!item_due_date) {
+            throw new Error("No due date found");
+          }
+          tool_resp = await addShoppingListItem(item, item_due_date);
+          const tool_call_id = tool.id;
+          // Add the response to the messages
+          await doInstance.pushMessage(
+            { role: "tool", content: tool_resp, tool_call_id }
+          );
+        }
+      }
+
       const responded = completion.choices[0].message;
       if (responded.content) {
         try {

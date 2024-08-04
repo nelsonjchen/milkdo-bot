@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20240502.0",
+    "@doist/todoist-api-typescript": "^3.0.3",
     "@grammyjs/storage-cloudflare": "^2.4.2",
     "@roziscoding/grammy-autoquote": "^2.0.6",
     "dotenv": "^16.4.5",
