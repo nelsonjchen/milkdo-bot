@@ -27,8 +27,7 @@ export interface Env {
   QUEUE: Queue<QueueMessage>;
 }
 
-const model_wake = "gpt-4o";
-const model_process = "gpt-4o";
+const model_process = "gpt-4o-mini	";
 
 const replicateWhisperModel = "vaibhavs10/incredibly-fast-whisper:3ab86df6c8f54c11309d4d1f930ac292bad43ace52d10c80d87eb258b3c9f79c"
 
@@ -47,7 +46,7 @@ function getSystemPrompt(
   config: SystemPromptConfig = {
   }
 ): OpenAI.Chat.Completions.ChatCompletionMessageParam {
-  let content = `You are a to-do list assistance bot.`;
+  let content = `You are a to-do list assistance bot. For right now, you can only add items to the list sometimes. When you do add items to the list, add them with a nice name, and with a postfix emoji to represent the item. For example, "Milk 🥛", "Organic Strawberries 🍓", "Cheese 🧀", and so on. If no due date is specified, add it for today.`
   return {
     role: "system",
     content,
@@ -58,8 +57,6 @@ function getSystemPrompt(
 export default {
   async fetch(request: Request, env: Env) {
     try {
-
-
       const bot = new Bot<MyContext>(env.BOT_TOKEN, { botInfo });
       bot.use(autoQuote());
 
