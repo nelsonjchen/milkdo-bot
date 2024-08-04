@@ -111,15 +111,6 @@ export default {
       }
     );
 
-    // Model used for determining if the message should be actionable
-    const openai_wake = new OpenAI({
-      baseURL: env.OPENAI_BASE_URL,
-      apiKey: env.OPENAI_API_KEY,
-      defaultHeaders: {
-        "X-Title": "MilkdoWake",
-      },
-    })
-
     // Model used to process the message
     const openai_process = new OpenAI({
       baseURL: env.OPENAI_BASE_URL,
@@ -190,6 +181,10 @@ export default {
         { role: "user", content: `${message}`, name: fullName }
       );
 
+      // Does this message need to be processed? Is it mentioning us?
+      if (!message.includes("@Milkdo")) {
+        return;
+      }
 
       const completion = await retry(async () => {
         const completion = await openai_process.chat.completions.create({
