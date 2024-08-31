@@ -193,15 +193,16 @@ export default {
       const todoistAPI = new TodoistApi(env.TODOIST_API_TOKEN);
 
       const addShoppingListItem = async (item: string, due_date: string): Promise<string> => {
-        const task = await todoistAPI.addTask({
+        await todoistAPI.addTask({
           content: item,
           dueString: due_date,
           sectionId: "150049165",
           projectId: "2328224336",
+        }).catch((e) => {
+          console.error("Error adding task: ", e);
+          throw new Error("Error adding task");
         });
-        if (!task) {
-          throw new Error("No task found");
-        }
+
         // Add item to the to-do list
         await ctx.reply(`Added "${item}" to the to-do list.`);
         return `Added "${item}" to the to-do list.`;
