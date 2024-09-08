@@ -2,7 +2,7 @@
   "name": "dialoh_bot",
   "version": "0.0.0",
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20240502.0",
+    "@cloudflare/workers-types": "^4.20240903.0",
     "@doist/todoist-api-typescript": "^3.0.3",
     "@grammyjs/storage-cloudflare": "^2.4.2",
     "@roziscoding/grammy-autoquote": "^2.0.6",
@@ -11,14 +11,15 @@
     "openai": "^4.44.0",
     "replicate": "^0.29.4",
     "ts-retry-promise": "^0.8.0",
-    "typescript": "^5.4.5",
+    "typescript": "^5.5.2",
     "vitest": "^1.6.0",
-    "wrangler": "^3.55.0"
+    "wrangler": "^3.60.3"
   },
   "private": true,
   "scripts": {
     "start": "killall -9 workerd; wrangler dev",
     "deploy": "wrangler deploy",
+    "cf-typegen": "wrangler types",
     "test": "vitest"
   }
 }
