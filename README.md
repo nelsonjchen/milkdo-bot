@@ -1,8 +1,12 @@
-# Dialoh Bot
+# Milkdo Bot
 
-Serverless [grammy.js](https://grammy.dev/) bot to help me converse with Ukrainian-speaking friends.
+STATUS: Hardcoded to only respond to messages from a specific list of users and a specific project/category.
+
+Serverless [grammy.js](https://grammy.dev/) bot to help us add items to a grocery list
 
 Whitelisted to only respond to messages from a specific list of users.
+
+HARDCODED for one's own use case. Just reference. Maybe you can use it as a starting point.
 
 Runs on Cloudflare Workers to take advantage of their reliable and scalable infrastructure.
 
@@ -10,11 +14,10 @@ Idea is to use the conversational data model to better translate *conversations*
 
 ## Usage
 
-Talk to DialohBot on Telegram. You can invite and/or kick the bot into a group chat, and it will respond to messages from the users in the whitelist to translate.
+It's just a bot. Invited to a group.
 
 Commands:
 
-* `/setLanguages <language>` - Set the language of the bot to the conversations inside. Make sure to include English if there's English!
 * `/resetHistory` - Reset the conversation history in the bot. Sometimes the bot gets stuck or goes wild and needs a reset.
 
 ## Deployment
