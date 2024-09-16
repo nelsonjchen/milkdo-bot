@@ -243,6 +243,7 @@ export default {
           messages,
           temperature: 0,
           tools,
+          parallel_tool_calls: false,
         });
         // If no completion.choices, retry
         if (!completion.choices) {
