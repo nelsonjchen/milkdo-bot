@@ -215,8 +215,11 @@ export default {
         const successfulItems = results.filter(result => result !== null);
 
         const responseMessage = successfulItems.length > 0
-          ? `Added ${successfulItems.length} item(s) to the shopping list: ${successfulItems.map(item => `"${item.content}"`).join(', ')}`
-          : "Failed to add any items to the shopping list.";
+          ? `Added the following item(s) to your shopping list:\n\n${successfulItems.map(item => {
+            const dueString = item.due?.string ? ` (due ${item.due.string})` : '';
+            return `• ${item.content}${dueString}`;
+          }).join('\n')}`
+          : "Failed to add any items to the shopping list. Please try again later.";
 
         await ctx.reply(responseMessage);
         return responseMessage;
