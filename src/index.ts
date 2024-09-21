@@ -50,13 +50,19 @@ function getSystemPrompt(
   config: SystemPromptConfig = {
   }
 ): OpenAI.Chat.Completions.ChatCompletionMessageParam {
-  let content = `You are a shopping list assistance bot. For right now, you can only add items to the shopping list. When you do add items to the list, add them with a nice name, and with a postfix emoji to represent the item. For example, "Milk 🥛", "Organic Strawberries 🍓", "Cheese 🧀", and so on. If no due date is specified, add it for today.`
+  let content = `You are a shopping list assistance bot. For right now, you can only add items to the shopping list. When you do add items to the list, add them with a nice name, and with a postfix emoji or two to represent the item. For example, "Milk 🥛", "Organic Strawberries 🍓", "Cheese 🧀", and so on. If no due date is specified, add it for today.`
   return {
     role: "system",
     content,
   };
 }
 
+interface AddShoppingListItemArguments {
+  items: Array<{
+    name: string;
+    dueDate: string;
+  }>;
+}
 
 export default {
   async fetch(request: Request, env: Env) {
@@ -192,50 +198,62 @@ export default {
 
       const todoistAPI = new TodoistApi(env.TODOIST_API_TOKEN);
 
-      const addShoppingListItem = async (item: string, due_date: string): Promise<string> => {
-        await todoistAPI.addTask({
-          content: item,
-          dueString: due_date,
-          sectionId: "150049165",
-          projectId: "2328224336",
-        }).catch((e) => {
-          console.error("Error adding task: ", e);
-          throw new Error("Error adding task");
-        });
+      const addShoppingListItems = async (items: Array<{ name: string; dueDate: string }>): Promise<string> => {
+        const addItemPromises = items.map(item =>
+          todoistAPI.addTask({
+            content: item.name,
+            dueString: item.dueDate,
+            sectionId: "150049165",
+            projectId: "2328224336",
+          }).catch((e) => {
+            console.error(`Error adding task "${item.name}": `, e);
+            return null;
+          })
+        );
 
-        // Add item to the to-do list
-        await ctx.reply(`Added "${item}" to the to-do list.`);
-        return `Added "${item}" to the to-do list.`;
+        const results = await Promise.all(addItemPromises);
+        const successfulItems = results.filter(result => result !== null);
+
+        const responseMessage = successfulItems.length > 0
+          ? `Added ${successfulItems.length} item(s) to the shopping list: ${successfulItems.map(item => `"${item.content}"`).join(', ')}`
+          : "Failed to add any items to the shopping list.";
+
+        await ctx.reply(responseMessage);
+        return responseMessage;
       }
 
       const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
         {
           type: "function",
           function: {
-            name: "addShoppingListItem",
-            description: "Adds an item to the shopping list.",
+            name: "addShoppingListItems",
+            description: "Adds multiple items to the shopping list.",
             parameters: {
               type: "object",
               properties: {
-                name: {
-                  type: "string",
-                  description: "The name of the item to add to the shopping list, postfixed with an emoji to represent the item, e.g. 'Milk 🥛'."
-                },
-                dueDate: {
-                  type: "string",
-                  description: "The due date of the item to add to the shopping list, e.g. 'today', or 'tomorrow'."
+                items: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      name: {
+                        type: "string",
+                        description: "The name of the item to add to the shopping list, postfixed with an emoji to represent the item, e.g. 'Milk 🥛'."
+                      },
+                      dueDate: {
+                        type: "string",
+                        description: "The due date of the item to add to the shopping list, e.g. 'today', or 'tomorrow'."
+                      }
+                    },
+                    required: ["name", "dueDate"]
+                  }
                 }
               },
-              "required": ["name", "dueDate"],
+              required: ["items"],
             },
           }
         },
       ];
-
-      interface AddShoppingListItemArguments {
-        name: string;
-        dueDate: string;
-      }
 
       let completion = await retry(async () => {
         const completion = await openai_process.chat.completions.create({
@@ -255,17 +273,13 @@ export default {
       // If there's a tool call, do it
       if (completion.choices[0].message.tool_calls) {
         const tool = completion.choices[0].message.tool_calls[0];
-        if (tool.function.name === "addShoppingListItem") {
+        if (tool.function.name === "addShoppingListItems") {
           const args = JSON.parse(tool.function.arguments) as AddShoppingListItemArguments;
-          const item = args.name;
-          if (!item) {
-            throw new Error("No item found");
+          const items = args.items;
+          if (!items || items.length === 0) {
+            throw new Error("No items found");
           }
-          const item_due_date = args.dueDate;
-          if (!item_due_date) {
-            throw new Error("No due date found");
-          }
-          tool_resp = await addShoppingListItem(item, item_due_date);
+          tool_resp = await addShoppingListItems(items);
           const tool_call_id = tool.id;
           // Add the response to the messages
           await doInstance.pushMessage(completion.choices[0].message)
