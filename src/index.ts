@@ -63,7 +63,7 @@ Complex items:
 - "Organic Baby Spinach 🥬🌱"
 - "Free-Range Chicken Eggs 🐓🥚"
 - "Greek Yogurt Parfait Mix 🥄🍯"
-- "Wild Caught Salmon Fillets 🎣🍓"
+- "Wild Caught Salmon Fillets 🎣🐟"
 - "Dark Chocolate Covered Almonds 🍫🌰"
 
 If no due date is specified, add it for today. Always strive to make the shopping list items clear, specific, and visually appealing with the appropriate use of emojis.`;
