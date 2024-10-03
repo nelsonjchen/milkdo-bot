@@ -10,6 +10,7 @@
     "grammy": "^1.22.4",
     "openai": "^4.61.1",
     "replicate": "^0.29.4",
+    "telegramify-markdown": "^1.2.2",
     "ts-retry-promise": "^0.8.0",
     "typescript": "^5.5.2",
     "vitest": "^1.6.0",
