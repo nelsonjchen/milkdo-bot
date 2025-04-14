@@ -1,7 +1,6 @@
 import OpenAI from "openai";
 import { ChatCompletionMessageParam } from "openai/resources/chat/completions";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { m } from "vitest/dist/reporters-yx5ZTtEV";
+import { describe, expect, it } from "vitest";
 
 
 describe("OpenAI", () => {
