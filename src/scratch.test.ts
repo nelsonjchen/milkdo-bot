@@ -1,7 +1,20 @@
+import { TodoistApi } from "@doist/todoist-api-typescript";
 import OpenAI from "openai";
 import { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 import { describe, expect, it } from "vitest";
 
+describe("Todoist", () => {
+  it("should return a project ID", async () => {
+    if (!process.env.TODOIST_API_TOKEN) {
+      throw new Error("TODOIST_API_TOKEN is not set");
+    }
+    const todoist = new TodoistApi(
+      process.env.TODOIST_API_TOKEN
+    );
+    const response = await todoist.getProjects();
+    console.log(response);
+  });
+});
 
 describe("OpenAI", () => {
   // Sample Hello World Test
@@ -32,10 +45,10 @@ describe("OpenAI", () => {
 
   // Run against the real OpenAI API
   it('should return a response from the OpenAI API', async () => {
-    console.log('OPENAI_API_KEY', process.env.OPENAI_API_KEY);
-    const openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-    });
+      console.log('OPENAI_API_KEY', process.env.OPENAI_API_KEY);
+      const openai = new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY,
+      });
 
     interface ShoppingListItem {
       name: string;

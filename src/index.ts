@@ -7,8 +7,6 @@ import { autoQuote } from "@roziscoding/grammy-autoquote";
 import { retry } from 'ts-retry-promise';
 import { DurableObject } from "cloudflare:workers";
 import { TodoistApi, TodoistRequestError } from "@doist/todoist-api-typescript"
-import { J } from 'vitest/dist/chunks/reporters.d.CfRkRKN2';
-
 
 
 interface WhisperOutput {
@@ -221,8 +219,8 @@ export default {
           todoistAPI.addTask({
             content: item.name,
             dueString: item.dueDate,
-            sectionId: "shopping-list-6Rq2Gfgm4RJHXvff",
-            projectId: "nelson-and-yrenia-6RXQC5qFxG5P3rX7",
+            sectionId: "6Rq2Gfgm4RJHXvff",
+            projectId: "6RXQC5qFxG5P3rX7",
           }).catch((e: TodoistRequestError) => {
             console.error(`Error adding task "${item.name}": `, JSON.stringify(e));
             return null;
