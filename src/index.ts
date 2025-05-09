@@ -221,8 +221,8 @@ export default {
           todoistAPI.addTask({
             content: item.name,
             dueString: item.dueDate,
-            sectionId: "150049165",
-            projectId: "2328224336",
+            sectionId: "shopping-list-6Rq2Gfgm4RJHXvff",
+            projectId: "nelson-and-yrenia-6RXQC5qFxG5P3rX7",
           }).catch((e: TodoistRequestError) => {
             console.error(`Error adding task "${item.name}": `, JSON.stringify(e));
             return null;
