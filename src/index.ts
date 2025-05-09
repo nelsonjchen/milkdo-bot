@@ -6,7 +6,8 @@ import Replicate from "replicate";
 import { autoQuote } from "@roziscoding/grammy-autoquote";
 import { retry } from 'ts-retry-promise';
 import { DurableObject } from "cloudflare:workers";
-import { TodoistApi } from "@doist/todoist-api-typescript"
+import { TodoistApi, TodoistRequestError } from "@doist/todoist-api-typescript"
+import { J } from 'vitest/dist/chunks/reporters.d.CfRkRKN2';
 
 
 
@@ -222,8 +223,8 @@ export default {
             dueString: item.dueDate,
             sectionId: "150049165",
             projectId: "2328224336",
-          }).catch((e) => {
-            console.error(`Error adding task "${item.name}": `, e);
+          }).catch((e: TodoistRequestError) => {
+            console.error(`Error adding task "${item.name}": `, JSON.stringify(e));
             return null;
           })
         );
