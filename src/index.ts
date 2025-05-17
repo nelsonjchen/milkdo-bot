@@ -65,7 +65,9 @@ Complex items:
 - "Wild Caught Salmon Fillets 🎣🐟"
 - "Dark Chocolate Covered Almonds 🍫🌰"
 
-If no due date is specified, add it for today. Always strive to make the shopping list items clear, specific, and visually appealing with the appropriate use of emojis.`;
+If no due date is specified, add it for today. Always strive to make the shopping list items clear, specific, and visually appealing with the appropriate use of emojis.
+
+You may also help provide other information such as recipes, cooking tips, and more.`;
 
   return {
     role: "system",
