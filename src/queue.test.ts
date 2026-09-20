@@ -1,10 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  reply: vi.fn(), typing: vi.fn(), completion: vi.fn(), pushMessage: vi.fn(),
-  pushMessages: vi.fn(), addTask: vi.fn(),
+  reply: vi.fn(), typing: vi.fn(), completion: vi.fn(), appendInputTurn: vi.fn(), addTask: vi.fn(),
 }));
-vi.mock("cloudflare:workers", () => ({ DurableObject: class {} }));
+vi.mock("cloudflare:workers", () => ({ DurableObject: class { constructor(public ctx: any) {} } }));
 vi.mock("grammy", () => ({
   Bot: class {
     botInfo = { id: 1, is_bot: true, first_name: "Bot" };
@@ -24,7 +23,7 @@ vi.mock("grammy", () => ({
   webhookCallback: vi.fn(),
 }));
 vi.mock("openai", () => ({ default: class {
-  chat = { completions: { create: mocks.completion } };
+  responses = { create: mocks.completion };
 } }));
 vi.mock("replicate", () => ({ default: class {} }));
 vi.mock("@doist/todoist-api-typescript", () => ({ TodoistApi: class {
@@ -32,12 +31,12 @@ vi.mock("@doist/todoist-api-typescript", () => ({ TodoistApi: class {
 } }));
 vi.mock("ts-retry-promise", () => ({ retry: (action: () => unknown) => action() }));
 
-import worker, { type Env } from "./index";
+import worker, { ChatDurableObject, type Env } from "./index";
 
 const env = {
   WHITELISTED_USERS: "42",
   CHAT_DO: { idFromName: (name: string) => name, get: () => ({
-    pushMessage: mocks.pushMessage, pushMessages: mocks.pushMessages,
+    appendInputTurn: mocks.appendInputTurn,
   }) },
 } as unknown as Env;
 function queuedMessage(id: number) {
@@ -55,35 +54,41 @@ beforeEach(() => {
   vi.resetAllMocks();
   mocks.reply.mockResolvedValue({});
   mocks.typing.mockResolvedValue(true);
-  mocks.pushMessage.mockResolvedValue([{ role: "user", content: "napa cabbage" }]);
-  mocks.completion.mockResolvedValue({ choices: [{ message: { role: "assistant", content: "Hello" } }] });
+  mocks.appendInputTurn.mockResolvedValue([{ role: "user", content: "napa cabbage" }]);
+  mocks.completion.mockResolvedValue({ status: "completed", output_text: "Hello", output: [{
+    type: "message", id: "msg-1", role: "assistant", status: "completed",
+    content: [{ type: "output_text", text: "Hello", annotations: [] }],
+  }] });
 });
 
 describe("queue failures", () => {
-  it("disables reasoning for Luna tool calls on Chat Completions", async () => {
+  it("uses Responses with reasoning and stateless reasoning continuity", async () => {
     await run([queuedMessage(1)]);
     expect(mocks.completion).toHaveBeenCalledWith(expect.objectContaining({
       model: "gpt-5.6-luna",
-      reasoning_effort: "none",
-      tools: expect.arrayContaining([expect.objectContaining({ type: "function" })]),
+      reasoning: { effort: "low" },
+      store: false,
+      include: ["reasoning.encrypted_content"],
+      tools: expect.arrayContaining([expect.objectContaining({ type: "function", name: "addShoppingListItems", strict: false })]),
     }));
   });
 
   it("adds a tool-requested item, replies, and stores the complete tool exchange", async () => {
-    mocks.completion.mockResolvedValue({ choices: [{ message: {
-      role: "assistant", content: null, tool_calls: [{ id: "call-1", type: "function", function: {
-        name: "addShoppingListItems", arguments: JSON.stringify({ items: [{ name: "Napa Cabbage 🥬" }] }),
-      } }],
-    } }] });
+    mocks.completion.mockResolvedValue({ status: "completed", output: [
+      { type: "reasoning", id: "rs-1", summary: [], encrypted_content: "encrypted-reasoning" },
+      { type: "function_call", id: "fc-1", call_id: "call-1", name: "addShoppingListItems",
+        arguments: JSON.stringify({ items: [{ name: "Napa Cabbage 🥬" }] }) },
+    ] });
     const message = queuedMessage(1);
     await run([message]);
     expect(mocks.addTask).toHaveBeenCalledOnce();
     expect(mocks.addTask).toHaveBeenCalledWith(expect.objectContaining({ content: "Napa Cabbage 🥬" }));
     expect(mocks.reply.mock.calls[0][0]).toContain("Added the following item(s)");
-    expect(mocks.pushMessages).toHaveBeenCalledWith([
-      expect.objectContaining({ role: "assistant" }),
-      expect.objectContaining({ role: "tool", tool_call_id: "call-1" }),
-    ], expect.any(Number));
+    expect(mocks.appendInputTurn).toHaveBeenLastCalledWith([
+      expect.objectContaining({ type: "reasoning", encrypted_content: "encrypted-reasoning" }),
+      expect.objectContaining({ type: "function_call", call_id: "call-1" }),
+      expect.objectContaining({ type: "function_call_output", call_id: "call-1" }),
+    ]);
     expect(message.ack).toHaveBeenCalledOnce();
   });
 
@@ -99,8 +104,16 @@ describe("queue failures", () => {
   });
 
   it("replies when the model returns empty content", async () => {
-    mocks.completion.mockResolvedValue({ choices: [{ message: { content: null } }] });
+    mocks.completion.mockResolvedValue({ status: "completed", output: [], output_text: "" });
     await run([queuedMessage(1)]);
+    expect(mocks.reply.mock.calls[0][0]).toContain("couldn't finish processing");
+  });
+
+  it("does not execute tool calls from an incomplete response", async () => {
+    mocks.completion.mockResolvedValue({ status: "incomplete", incomplete_details: { reason: "max_output_tokens" },
+      output: [{ type: "function_call", call_id: "call-1", name: "addShoppingListItems", arguments: '{"items":[{"name":"Cabbage"}]}' }] });
+    await run([queuedMessage(1)]);
+    expect(mocks.addTask).not.toHaveBeenCalled();
     expect(mocks.reply.mock.calls[0][0]).toContain("couldn't finish processing");
   });
 
@@ -118,5 +131,47 @@ describe("queue failures", () => {
     expect(first.retry).toHaveBeenCalledOnce();
     expect(first.ack).not.toHaveBeenCalled();
     expect(second.ack).toHaveBeenCalledOnce();
+  });
+});
+
+describe("Durable Object Responses storage", () => {
+  function storageFixture() {
+    const values = new Map<string, unknown>([["messages", [
+      { role: "system", content: "Old date" },
+      { role: "user", content: "milk", name: "Test" },
+      { role: "assistant", content: "Added milk" },
+    ]]]);
+    const storage = {
+      get: async (key: string) => values.get(key),
+      put: async (key: string, value: unknown) => { values.set(key, value); },
+      delete: async (key: string) => values.delete(key),
+      transaction: async (callback: (txn: unknown) => unknown) => callback(storage),
+    };
+    const object = new ChatDurableObject({ storage } as unknown as DurableObjectState, env);
+    return { object, values };
+  }
+
+  it("migrates once and preserves subsequent Responses turns across calls", async () => {
+    const { object, values } = storageFixture();
+    const first = await object.appendInputTurn([{ role: "user", content: "napa cabbage" }]);
+    expect(first).toEqual([
+      { role: "user", content: "Test: milk" },
+      { role: "assistant", content: "Added milk" },
+      { role: "user", content: "napa cabbage" },
+    ]);
+    expect(values.has("messages")).toBe(true);
+    const second = await object.appendInputTurn([{ role: "assistant", content: "Added cabbage" }]);
+    expect(second).toEqual([...first, { role: "assistant", content: "Added cabbage" }]);
+  });
+
+  it("clears both history formats so legacy messages cannot reappear", async () => {
+    const { object, values } = storageFixture();
+    await object.appendInputTurn([{ role: "user", content: "cabbage" }]);
+    expect(await object.clearHistory()).toBe(3);
+    expect(values.has("messages")).toBe(false);
+    expect(await object.getResponseHistory()).toEqual([]);
+    expect(await object.appendInputTurn([{ role: "user", content: "hello" }])).toEqual([
+      { role: "user", content: "hello" },
+    ]);
   });
 });

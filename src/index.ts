@@ -17,7 +17,9 @@ import {
   updateShoppingListTask,
 } from "./shoppingList";
 import { getSystemPrompt } from "./systemPrompt";
-import { compactChatHistory } from "./chatHistory";
+import type { ResponseInput } from "openai/resources/responses/responses";
+import { appendResponseTurn, migrateChatHistory, responseOutputToInput, type ResponseHistory } from "./responseHistory";
+import { shoppingTools } from "./shoppingTools";
 
 
 interface WhisperOutput {
@@ -197,10 +199,9 @@ export default {
 
       const doId = env.CHAT_DO.idFromName(ctx.chat.id.toString());
       const doInstance = env.CHAT_DO.get(doId);
-      const messages = await doInstance.pushMessage(
-        { role: "user", content: `${message}`, name: fullName },
-        requestNow,
-      );
+      const input = await doInstance.appendInputTurn([
+        { role: "user", content: `${fullName}: ${message}` },
+      ]);
 
       // Does this message need to be processed? Is it mentioning us?
       // if (!message.includes("@Milkdo")) {
@@ -327,100 +328,40 @@ export default {
         return responseMessage;
       };
 
-      const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
-        {
-          type: "function",
-          function: {
-            name: "addShoppingListItems",
-            description: "Adds multiple items to the shopping list.",
-            parameters: {
-              type: "object",
-              properties: {
-                items: {
-                  type: "array",
-                  items: {
-                    type: "object",
-                    properties: {
-                      name: {
-                        type: "string",
-                        description: "The name of the item to add to the shopping list, postfixed with an emoji to represent the item, e.g. 'Milk 🥛'."
-                      },
-                      dueDate: {
-                        type: "string",
-                        description: "The due date in Pacific time as YYYY-MM-DD. Resolve relative dates using the current Pacific date from the system prompt. Omit when no date is specified so the application defaults to today."
-                      },
-                      dueTime: {
-                        type: "string",
-                        description: "Optional due time in Pacific local time as HH:mm, using 24-hour format."
-                      }
-                    },
-                    required: ["name"]
-                  }
-                }
-              },
-              required: ["items"],
-            },
-          }
-        },
-        {
-          type: "function",
-          function: {
-            name: "updateShoppingListItem",
-            description: "Changes the due date of one existing active item on the shopping list immediately. Do not ask for confirmation before making the change.",
-            parameters: {
-              type: "object",
-              properties: {
-                itemName: {
-                  type: "string",
-                  description: "The existing shopping-list item to update, without requiring its trailing emoji."
-                },
-                dueDate: {
-                  type: "string",
-                  description: "The new due date in Pacific time as YYYY-MM-DD. Resolve relative dates using the current Pacific date from the system prompt."
-                },
-                dueTime: {
-                  type: "string",
-                  description: "Optional new due time in Pacific local time as HH:mm, using 24-hour format."
-                }
-              },
-              required: ["itemName", "dueDate"],
-            },
-          }
-        },
-      ];
-
-      let completion = await retry(async () => {
-        const completion = await openai_process.chat.completions.create({
+      const response = await retry(async () => {
+        const response = await openai_process.responses.create({
           model: model_process,
-          messages,
-          // Luna's Chat Completions endpoint only supports tools with reasoning
-          // disabled. SDK v4 predates the API's "none" value.
-          reasoning_effort: "none" as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming["reasoning_effort"],
-          tools,
+          instructions: getSystemPrompt({ now: new Date(requestNow) }).content,
+          input,
+          reasoning: { effort: "low" },
+          store: false,
+          include: ["reasoning.encrypted_content"],
+          tools: shoppingTools,
           parallel_tool_calls: false,
         });
-        // If no completion.choices, retry
-        if (!completion.choices?.[0]?.message) {
-          throw new Error("No completion message");
+        if (response.status !== "completed" || !response.output?.length) {
+          throw new Error(`Model response ${response.status}: ${response.error?.message ?? response.incomplete_details?.reason ?? "no output"}`);
         }
-        return completion;
+        return response;
       }, { retries: 3 });
+      const outputItems = responseOutputToInput(response.output);
+      const toolCalls = response.output.filter(item => item.type === "function_call");
       let tool_resp: string | undefined;
       // If there's a tool call, do it
-      if (completion.choices[0].message.tool_calls?.length) {
-        if (completion.choices[0].message.tool_calls.length !== 1) {
+      if (toolCalls.length) {
+        if (toolCalls.length !== 1) {
           throw new Error("Expected one tool call");
         }
-        const tool = completion.choices[0].message.tool_calls[0];
-        if (tool.function.name === "addShoppingListItems") {
-          const args = JSON.parse(tool.function.arguments) as AddShoppingListItemArguments;
+        const tool = toolCalls[0];
+        if (tool.name === "addShoppingListItems") {
+          const args = JSON.parse(tool.arguments) as AddShoppingListItemArguments;
           const items = args.items;
           if (!items || items.length === 0) {
             throw new Error("No items found");
           }
           tool_resp = await addShoppingListItems(items);
-        } else if (tool.function.name === "updateShoppingListItem") {
-          const args = JSON.parse(tool.function.arguments) as UpdateShoppingListItemArguments;
+        } else if (tool.name === "updateShoppingListItem") {
+          const args = JSON.parse(tool.arguments) as UpdateShoppingListItemArguments;
           if (!args.itemName || !args.dueDate) {
             throw new Error("Item name and due date are required");
           }
@@ -430,19 +371,16 @@ export default {
             args.dueTime,
           );
         } else {
-          throw new Error(`Unknown tool: ${tool.function.name}`);
+          throw new Error(`Unknown tool: ${tool.name}`);
         }
-        const tool_call_id = tool.id;
-        // Add the response to the messages
-        await doInstance.pushMessages(
-          [completion.choices[0].message, { role: "tool", content: tool_resp, tool_call_id }],
-          requestNow,
-        );
+        await doInstance.appendInputTurn([
+          ...outputItems,
+          { type: "function_call_output", output: tool_resp, call_id: tool.call_id },
+        ]);
       } else {
-        const responded = completion.choices[0].message;
-        if (responded.content) {
+        if (response.output_text) {
           await ctx.reply(
-            responded.content,
+            response.output_text,
             {
               reply_parameters: {
                 message_id: ctx.message.message_id,
@@ -450,8 +388,7 @@ export default {
             },
           );
 
-          await doInstance.pushMessage(responded, requestNow);
-          responded.content = `${responded.content}`;
+          await doInstance.appendInputTurn(outputItems);
         } else {
           throw new Error("No content in bot response");
         }
@@ -569,46 +506,30 @@ export default {
 // Handles configuration and state of the Telegram chat
 export class ChatDurableObject extends DurableObject<Env> {
   async clearHistory(): Promise<number> {
-    // Get the last history's length
-    const lastMessages = await this.ctx.storage.get<ChatMessageParam[]>("messages");
-    if (!lastMessages) {
-      return 0;
-    }
-    await this.ctx.storage.put("messages", [
-      getSystemPrompt({ now: new Date() })
-    ]);
-    return lastMessages.length - 1;
+    const oldLength = (await this.getResponseHistory()).flat().length;
+    await this.ctx.storage.transaction(async txn => {
+      await txn.put("responseHistory", []);
+      await txn.delete("messages");
+    });
+    return oldLength;
   }
 
-  async getMessages(nowMs: number = Date.now()): Promise<ChatMessageParam[]> {
-    const currentSystemMessage = getSystemPrompt({ now: new Date(nowMs) });
-    const storedMessages = await this.ctx.storage.get<ChatMessageParam[]>("messages");
-    let messages: ChatMessageParam[];
-
-    if (!storedMessages) {
-      messages = [currentSystemMessage];
-    } else if (storedMessages[0]?.role === "system") {
-      // The system message contains the current clock snapshot, so refresh it
-      // on every request instead of keeping yesterday's date in storage.
-      messages = [currentSystemMessage, ...compactChatHistory(storedMessages.slice(1))];
-    } else {
-      messages = [currentSystemMessage, ...compactChatHistory(storedMessages)];
-    }
-
-    console.log("Chat history retrieved", { count: messages.length });
-    return messages;
+  async getResponseHistory(): Promise<ResponseHistory> {
+    const history = await this.ctx.storage.get<ResponseHistory>("responseHistory");
+    if (history) return history;
+    // Migrate lazily; retain the legacy transcript for deployment rollback.
+    const legacy = await this.ctx.storage.get<ChatMessageParam[]>("messages");
+    return migrateChatHistory(legacy ?? []);
   }
 
-  async pushMessage(message: ChatMessageParam, nowMs: number = Date.now()): Promise<ChatMessageParam[]> {
-    return this.pushMessages([message], nowMs);
+  async appendInputTurn(turn: ResponseInput): Promise<ResponseInput> {
+    return this.ctx.storage.transaction(async txn => {
+      const stored = await txn.get<ResponseHistory>("responseHistory");
+      const history = stored ?? migrateChatHistory(await txn.get<ChatMessageParam[]>("messages") ?? []);
+      const next = appendResponseTurn(history, turn);
+      await txn.put("responseHistory", next);
+      console.log("Response history saved", { turns: next.length, items: next.flat().length });
+      return next.flat();
+    });
   }
-
-  async pushMessages(newMessages: ChatMessageParam[], nowMs: number = Date.now()): Promise<ChatMessageParam[]> {
-    const history = await this.getMessages(nowMs);
-    const messages = [history[0], ...compactChatHistory([...history.slice(1), ...newMessages])];
-    await this.ctx.storage.put("messages", messages);
-    console.log("Chat history saved", { count: messages.length });
-    return messages;
-  }
-
 }

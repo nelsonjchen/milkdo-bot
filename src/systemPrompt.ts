@@ -10,7 +10,7 @@ export interface SystemPromptConfig {
 
 export function getSystemPrompt(
   config: SystemPromptConfig = {}
-): OpenAI.Chat.Completions.ChatCompletionMessageParam {
+): OpenAI.Chat.Completions.ChatCompletionSystemMessageParam & { content: string } {
   const snapshot = getPacificTimeSnapshot(config.now ?? new Date());
   const content = `You are a shopping list assistance bot. You can add items to the shopping list and change the due date of existing items. When you add items to the list, add them with a nice name, and with a postfix emoji or two to represent the item. Use a single emoji for simple items and two emojis for more complex items where appropriate. For example:
 
