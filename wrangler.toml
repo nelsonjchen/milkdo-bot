@@ -2,6 +2,9 @@ name = "milkdo-bot"
 main = "src/index.ts"
 compatibility_date = "2024-05-09"
 
+[observability]
+enabled = true
+
 [vars]
 OPENAI_BASE_URL = "https://api.openai.com/v1"
 WHITELISTED_USERS= "1372260897,6856908389"
