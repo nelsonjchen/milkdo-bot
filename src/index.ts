@@ -15,6 +15,8 @@ import {
   SHOPPING_LIST_PROJECT_ID,
   SHOPPING_LIST_SECTION_ID,
   updateShoppingListTask,
+  deleteShoppingListTask,
+  describeShoppingListChoices,
 } from "./shoppingList";
 import { getSystemPrompt } from "./systemPrompt";
 import type { ResponseInput } from "openai/resources/responses/responses";
@@ -65,8 +67,12 @@ interface AddShoppingListItemArguments {
   }>;
 }
 
-interface UpdateShoppingListItemArguments {
+interface ShoppingListItemArguments {
   itemName: string;
+  taskId?: string;
+}
+
+interface UpdateShoppingListItemArguments extends ShoppingListItemArguments {
   dueDate: string;
   dueTime?: string;
 }
@@ -289,6 +295,7 @@ export default {
         itemName: string,
         dueDate: string,
         dueTime?: string,
+        taskId?: string,
       ): Promise<string> => {
         const resolvedDueDate = resolveDueDate(
           dueDate,
@@ -307,6 +314,7 @@ export default {
             todoistAPI,
             itemName,
             resolvedDueDate.todoistArgs,
+            taskId,
           );
 
           if (result.kind === "updated") {
@@ -314,9 +322,7 @@ export default {
           } else if (result.kind === "not_found") {
             responseMessage = `I couldn't find an active shopping-list item matching "${result.itemName}".`;
           } else {
-            const choices = result.tasks
-              .map((task, index) => `${index + 1}. ${task.content}`)
-              .join("\n");
+            const choices = describeShoppingListChoices(result.tasks);
             responseMessage = `I found multiple active shopping-list items matching "${itemName}":\n\n${choices}\n\nTell me which one you want to change.`;
           }
         } catch (e) {
@@ -324,6 +330,25 @@ export default {
           responseMessage = "I couldn't update that shopping-list item. Please try again later.";
         }
 
+        await ctx.reply(responseMessage);
+        return responseMessage;
+      };
+
+      const deleteShoppingListItem = async (itemName: string, taskId?: string): Promise<string> => {
+        let responseMessage: string;
+        try {
+          const result = await deleteShoppingListTask(todoistAPI, itemName, taskId);
+          if (result.kind === "deleted") {
+            responseMessage = `Deleted ${result.task.content} from your shopping list.`;
+          } else if (result.kind === "not_found") {
+            responseMessage = `I couldn't find an active shopping-list item matching "${itemName}".`;
+          } else {
+            responseMessage = `I found multiple active shopping-list items matching "${itemName}":\n\n${describeShoppingListChoices(result.tasks)}\n\nTell me which one you want to delete.`;
+          }
+        } catch (e) {
+          console.error("Error deleting shopping-list item", e);
+          responseMessage = "I couldn't delete that shopping-list item. Please try again later.";
+        }
         await ctx.reply(responseMessage);
         return responseMessage;
       };
@@ -369,7 +394,12 @@ export default {
             args.itemName,
             args.dueDate,
             args.dueTime,
+            args.taskId,
           );
+        } else if (tool.name === "deleteShoppingListItem") {
+          const args = JSON.parse(tool.arguments) as ShoppingListItemArguments;
+          if (!args.itemName?.trim()) throw new Error("Item name is required");
+          tool_resp = await deleteShoppingListItem(args.itemName, args.taskId);
         } else {
           throw new Error(`Unknown tool: ${tool.name}`);
         }
@@ -492,7 +522,7 @@ export default {
           requestId: details?.request_id,
         });
         try {
-          await context.reply("Sorry, I couldn't finish processing your message. Please check the shopping list before trying again, in case the item was already added.");
+          await context.reply("Sorry, I couldn't finish processing your message. Please check the shopping list before trying again, in case the change was already applied.");
           message.ack();
         } catch (replyError) {
           console.error("Could not send failure reply", { updateId: context.update.update_id, error: replyError });

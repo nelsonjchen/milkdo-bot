@@ -2,7 +2,7 @@
 
 STATUS: Hardcoded to only respond to messages from a specific list of users and a specific project/category.
 
-Serverless [grammy.js](https://grammy.dev/) bot to help us add items to a grocery list
+Serverless [grammy.js](https://grammy.dev/) bot to help us add, delete, and reschedule items on a grocery list
 
 Whitelisted to only respond to messages from a specific list of users.
 
@@ -15,6 +15,10 @@ Idea is to use the conversational data model to better translate *conversations*
 ## Usage
 
 It's just a bot. Invited to a group.
+
+Send messages such as “delete milk” or “move bananas to tomorrow at 5 PM”.
+Dates and times use Pacific time. If multiple active items have the same name,
+the bot asks you to choose before deleting or rescheduling one.
 
 Commands:
 

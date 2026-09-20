@@ -45,6 +45,10 @@ export const shoppingTools: FunctionTool[] = [
     "parameters": {
       "type": "object",
       "properties": {
+        "taskId": {
+          "type": "string",
+          "description": "Optional ID from a previous tool result, used only after the user selects a specific duplicate. Never invent an ID."
+        },
         "itemName": {
           "type": "string",
           "description": "The existing shopping-list item to update, without requiring its trailing emoji."
@@ -64,5 +68,19 @@ export const shoppingTools: FunctionTool[] = [
       ]
     },
     "strict": false
+  },
+  {
+    type: "function",
+    name: "deleteShoppingListItem",
+    description: "Deletes an existing active shopping-list item when the user asks to delete or remove it. Act immediately when the item is unambiguous.",
+    parameters: {
+      type: "object",
+      properties: {
+        itemName: { type: "string", description: "Existing item name, without requiring its trailing emoji." },
+        taskId: { type: "string", description: "Optional ID from a previous tool result after the user selects a specific duplicate. Never invent an ID." },
+      },
+      required: ["itemName"],
+    },
+    strict: false,
   }
 ];

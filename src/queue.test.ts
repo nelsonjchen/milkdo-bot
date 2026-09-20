@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   reply: vi.fn(), typing: vi.fn(), completion: vi.fn(), appendInputTurn: vi.fn(), addTask: vi.fn(),
+  getTasks: vi.fn(), updateTask: vi.fn(), deleteTask: vi.fn(),
 }));
 vi.mock("cloudflare:workers", () => ({ DurableObject: class { constructor(public ctx: any) {} } }));
 vi.mock("grammy", () => ({
@@ -28,6 +29,9 @@ vi.mock("openai", () => ({ default: class {
 vi.mock("replicate", () => ({ default: class {} }));
 vi.mock("@doist/todoist-api-typescript", () => ({ TodoistApi: class {
   addTask = mocks.addTask;
+  getTasks = mocks.getTasks;
+  updateTask = mocks.updateTask;
+  deleteTask = mocks.deleteTask;
 } }));
 vi.mock("ts-retry-promise", () => ({ retry: (action: () => unknown) => action() }));
 
@@ -69,7 +73,11 @@ describe("queue failures", () => {
       reasoning: { effort: "low" },
       store: false,
       include: ["reasoning.encrypted_content"],
-      tools: expect.arrayContaining([expect.objectContaining({ type: "function", name: "addShoppingListItems", strict: false })]),
+      tools: expect.arrayContaining([
+        expect.objectContaining({ type: "function", name: "addShoppingListItems", strict: false }),
+        expect.objectContaining({ type: "function", name: "updateShoppingListItem", strict: false }),
+        expect.objectContaining({ type: "function", name: "deleteShoppingListItem", strict: false }),
+      ]),
     }));
   });
 
@@ -173,5 +181,70 @@ describe("Durable Object Responses storage", () => {
     expect(await object.appendInputTurn([{ role: "user", content: "hello" }])).toEqual([
       { role: "user", content: "hello" },
     ]);
+  });
+});
+
+describe("shopping-list changes through the queue", () => {
+  function callTool(name: string, args: object) {
+    mocks.completion.mockResolvedValue({ status: "completed", output: [{
+      type: "function_call", id: "fc-1", call_id: "call-1", name,
+      arguments: JSON.stringify(args),
+    }] });
+    mocks.getTasks.mockResolvedValue({ results: [{ id: "milk-1", content: "Milk 🥛" }], nextCursor: null });
+  }
+
+  it("deletes and records a successful tool result", async () => {
+    callTool("deleteShoppingListItem", { itemName: "milk" });
+    mocks.deleteTask.mockResolvedValue(true);
+    const message = queuedMessage(1);
+    await run([message]);
+    expect(mocks.deleteTask).toHaveBeenCalledWith("milk-1");
+    expect(mocks.reply).toHaveBeenCalledWith("Deleted Milk 🥛 from your shopping list.");
+    expect(mocks.appendInputTurn).toHaveBeenLastCalledWith([
+      expect.objectContaining({ type: "function_call" }),
+      expect.objectContaining({ type: "function_call_output", output: "Deleted Milk 🥛 from your shopping list." }),
+    ]);
+    expect(message.ack).toHaveBeenCalledOnce();
+  });
+
+  it("reschedules an existing item with a Pacific date and time", async () => {
+    callTool("updateShoppingListItem", { itemName: "milk", dueDate: "2026-09-22", dueTime: "17:00" });
+    mocks.updateTask.mockResolvedValue({ id: "milk-1", content: "Milk 🥛" });
+    await run([queuedMessage(1)]);
+    expect(mocks.updateTask).toHaveBeenCalledWith("milk-1", { dueString: "2026-09-22 at 17:00 America/Los_Angeles" });
+    expect(mocks.addTask).not.toHaveBeenCalled();
+    expect(mocks.reply.mock.calls[0][0]).toContain("5:00 PM (Pacific time)");
+  });
+
+  it("rejects invalid dates without changing the list", async () => {
+    callTool("updateShoppingListItem", { itemName: "milk", dueDate: "2026-02-30" });
+    await run([queuedMessage(1)]);
+    expect(mocks.updateTask).not.toHaveBeenCalled();
+    expect(mocks.reply.mock.calls[0][0]).toContain("couldn't interpret the due date");
+  });
+
+  it("reports deletion failures without claiming success", async () => {
+    callTool("deleteShoppingListItem", { itemName: "milk" });
+    mocks.deleteTask.mockRejectedValue(new Error("Todoist unavailable"));
+    await run([queuedMessage(1)]);
+    expect(mocks.reply.mock.calls[0][0]).toContain("couldn't delete");
+  });
+
+  it("asks which duplicate and then accepts the selected ID", async () => {
+    callTool("deleteShoppingListItem", { itemName: "milk" });
+    mocks.getTasks.mockResolvedValue({ results: [
+      { id: "milk-1", content: "Milk 🥛", due: { date: "2026-09-21" } },
+      { id: "milk-2", content: "Milk 🥛", due: { date: "2026-09-22" } },
+    ], nextCursor: null });
+    await run([queuedMessage(1)]);
+    expect(mocks.deleteTask).not.toHaveBeenCalled();
+    expect(mocks.reply.mock.calls[0][0]).toContain("2026-09-22; ID: milk-2");
+    mocks.completion.mockResolvedValue({ status: "completed", output: [{
+      type: "function_call", id: "fc-2", call_id: "call-2", name: "deleteShoppingListItem",
+      arguments: JSON.stringify({ itemName: "milk", taskId: "milk-2" }),
+    }] });
+    mocks.deleteTask.mockResolvedValue(true);
+    await run([queuedMessage(2)]);
+    expect(mocks.deleteTask).toHaveBeenCalledWith("milk-2");
   });
 });
