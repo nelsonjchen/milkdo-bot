@@ -2,7 +2,7 @@
 
 STATUS: Hardcoded to only respond to messages from a specific list of users and a specific project/category.
 
-Serverless [grammy.js](https://grammy.dev/) bot to help us add, delete, and reschedule items on a grocery list
+Serverless [grammy.js](https://grammy.dev/) bot to help us read, add, edit, delete, and consolidate items on a grocery list
 
 Whitelisted to only respond to messages from a specific list of users.
 
@@ -17,6 +17,11 @@ Idea is to use the conversational data model to better translate *conversations*
 It's just a bot. Invited to a group.
 
 Send messages such as “delete milk” or “move bananas to tomorrow at 5 PM”.
+You can also ask “show my list”, “find milk”, “rename milk to oat milk”,
+“set the milk description to unsweetened”, or “consolidate these two milk items”.
+Consolidation preserves notes and updates the kept item before deleting duplicates.
+Unclear quantities or conflicting dates need clarification. Recurring items cannot
+currently be consolidated. If cleanup fails, the bot reports the remaining items.
 Dates and times use Pacific time. If multiple active items have the same name,
 the bot asks you to choose before deleting or rescheduling one.
 

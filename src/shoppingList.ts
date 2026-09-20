@@ -35,7 +35,7 @@ export function describeShoppingListChoices(tasks: Task[]): string {
   ).join("\n");
 }
 
-async function getAllShoppingListTasks(api: ShoppingListApi): Promise<Task[]> {
+export async function getAllShoppingListTasks(api: ShoppingListApi): Promise<Task[]> {
   const tasks: Task[] = [];
   let cursor: string | undefined;
 

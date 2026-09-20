@@ -41,7 +41,7 @@ export const shoppingTools: FunctionTool[] = [
   {
     "type": "function",
     "name": "updateShoppingListItem",
-    "description": "Changes the due date of one existing active item on the shopping list immediately. Do not ask for confirmation before making the change.",
+    "description": "Edits the name, description, and/or due date of an existing active item. Omitted fields remain unchanged.",
     "parameters": {
       "type": "object",
       "properties": {
@@ -53,6 +53,14 @@ export const shoppingTools: FunctionTool[] = [
           "type": "string",
           "description": "The existing shopping-list item to update, without requiring its trailing emoji."
         },
+        "name": {
+          "type": "string",
+          "description": "New item name, including the intended quantity and emoji. Omit to preserve."
+        },
+        "description": {
+          "type": "string",
+          "description": "New item notes. Omit to preserve; an empty string clears notes."
+        },
         "dueDate": {
           "type": "string",
           "description": "The new due date in Pacific time as YYYY-MM-DD. Resolve relative dates using the current Pacific date from the system prompt."
@@ -63,8 +71,7 @@ export const shoppingTools: FunctionTool[] = [
         }
       },
       "required": [
-        "itemName",
-        "dueDate"
+        "itemName"
       ]
     },
     "strict": false
@@ -80,6 +87,29 @@ export const shoppingTools: FunctionTool[] = [
         taskId: { type: "string", description: "Optional ID from a previous tool result after the user selects a specific duplicate. Never invent an ID." },
       },
       required: ["itemName"],
+    },
+    strict: false,
+  },
+  {
+    type: "function", name: "listShoppingListItems",
+    description: "Reads the current active shopping list, including IDs, names, descriptions, and due dates. Optional query searches names and notes. Use before consolidation or when finding an item by partial name.",
+    parameters: { type: "object", properties: { query: { type: "string", description: "Optional substring to search; omit for the entire list." } } },
+    strict: false,
+  },
+  {
+    type: "function", name: "mergeShoppingListItems",
+    description: "Consolidates selected items from a fresh list result into one. Updates the survivor before deleting other selected items. Resolve unclear quantities or dates with the user first. Preserve all relevant notes. Never repeat a partially completed merge; inspect the list first.",
+    parameters: {
+      type: "object",
+      properties: {
+        taskIds: { type: "array", items: { type: "string" }, minItems: 2, description: "Distinct IDs of all selected items, from listShoppingListItems." },
+        keepTaskId: { type: "string", description: "One of taskIds: the item to keep." },
+        name: { type: "string", description: "Consolidated item name with the user-intended total quantity. Do not guess whether quantities should be added or deduplicated." },
+        description: { type: "string", description: "Consolidated notes. Omit to preserve and combine existing notes." },
+        dueDate: { type: "string", description: "YYYY-MM-DD in Pacific time. Required if source dates differ; ask the user if unspecified." },
+        dueTime: { type: "string", description: "Optional Pacific HH:mm with dueDate." },
+      },
+      required: ["taskIds", "keepTaskId", "name"],
     },
     strict: false,
   }

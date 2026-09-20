@@ -248,3 +248,37 @@ describe("shopping-list changes through the queue", () => {
     expect(mocks.deleteTask).toHaveBeenCalledWith("milk-2");
   });
 });
+
+describe("read then edit workflow", () => {
+  it("feeds a fresh list result back to the model before renaming", async () => {
+    mocks.getTasks.mockResolvedValue({ results: [{ id: "1", content: "Milk 🥛", description: "Whole" }], nextCursor: null });
+    mocks.updateTask.mockResolvedValue({ id: "1", content: "Oat milk 🥛" });
+    mocks.completion.mockResolvedValueOnce({ status: "completed", output: [{
+      type: "function_call", id: "fc-read", call_id: "call-read", name: "listShoppingListItems", arguments: '{}',
+    }] }).mockResolvedValueOnce({ status: "completed", output: [{
+      type: "function_call", id: "fc-edit", call_id: "call-edit", name: "updateShoppingListItem",
+      arguments: JSON.stringify({ itemName: "Milk", taskId: "1", name: "Oat milk 🥛" }),
+    }] });
+    mocks.appendInputTurn.mockImplementation(async (turn) => turn);
+    await run([queuedMessage(1)]);
+    expect(mocks.completion).toHaveBeenCalledTimes(2);
+    expect(mocks.completion.mock.calls[1][0].input).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: "function_call_output", call_id: "call-read", output: expect.stringContaining('"name":"Milk 🥛"') }),
+    ]));
+    expect(mocks.updateTask).toHaveBeenCalledWith("1", { content: "Oat milk 🥛" });
+    expect(mocks.reply).toHaveBeenCalledWith("Updated Oat milk 🥛.");
+  });
+
+  it("answers a list request from tool results", async () => {
+    mocks.getTasks.mockResolvedValue({ results: [], nextCursor: null });
+    mocks.completion.mockResolvedValueOnce({ status: "completed", output: [{
+      type: "function_call", id: "fc-read", call_id: "call-read", name: "listShoppingListItems", arguments: '{}',
+    }] }).mockResolvedValueOnce({ status: "completed", output_text: "Your shopping list is empty.", output: [{
+      type: "message", id: "msg-1", role: "assistant", status: "completed",
+      content: [{ type: "output_text", text: "Your shopping list is empty.", annotations: [] }],
+    }] });
+    await run([queuedMessage(1)]);
+    expect(mocks.reply).toHaveBeenCalledWith("Your shopping list is empty.", expect.anything());
+    expect(mocks.deleteTask).not.toHaveBeenCalled();
+  });
+});

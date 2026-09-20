@@ -14,13 +14,13 @@ import {
 import {
   SHOPPING_LIST_PROJECT_ID,
   SHOPPING_LIST_SECTION_ID,
-  updateShoppingListTask,
   deleteShoppingListTask,
   describeShoppingListChoices,
 } from "./shoppingList";
 import { getSystemPrompt } from "./systemPrompt";
 import type { ResponseInput } from "openai/resources/responses/responses";
 import { appendResponseTurn, migrateChatHistory, responseOutputToInput, type ResponseHistory } from "./responseHistory";
+import { editShoppingListItem, listShoppingListItems, mergeShoppingListItems, type ItemChanges, type MergeItemsArguments } from "./shoppingActions";
 import { shoppingTools } from "./shoppingTools";
 
 
@@ -72,10 +72,7 @@ interface ShoppingListItemArguments {
   taskId?: string;
 }
 
-interface UpdateShoppingListItemArguments extends ShoppingListItemArguments {
-  dueDate: string;
-  dueTime?: string;
-}
+interface UpdateShoppingListItemArguments extends ShoppingListItemArguments, ItemChanges {}
 
 export default {
   async fetch(request: Request, env: Env) {
@@ -291,49 +288,6 @@ export default {
         return responseMessage;
       };
 
-      const updateShoppingListItem = async (
-        itemName: string,
-        dueDate: string,
-        dueTime?: string,
-        taskId?: string,
-      ): Promise<string> => {
-        const resolvedDueDate = resolveDueDate(
-          dueDate,
-          dueTime,
-          new Date(requestNow),
-        );
-
-        if (!resolvedDueDate.ok) {
-          await ctx.reply(resolvedDueDate.error);
-          return resolvedDueDate.error;
-        }
-
-        let responseMessage: string;
-        try {
-          const result = await updateShoppingListTask(
-            todoistAPI,
-            itemName,
-            resolvedDueDate.todoistArgs,
-            taskId,
-          );
-
-          if (result.kind === "updated") {
-            responseMessage = `Updated ${result.task.content} to be due ${resolvedDueDate.display}.`;
-          } else if (result.kind === "not_found") {
-            responseMessage = `I couldn't find an active shopping-list item matching "${result.itemName}".`;
-          } else {
-            const choices = describeShoppingListChoices(result.tasks);
-            responseMessage = `I found multiple active shopping-list items matching "${itemName}":\n\n${choices}\n\nTell me which one you want to change.`;
-          }
-        } catch (e) {
-          console.error(`Error updating shopping-list item "${itemName}": `, JSON.stringify(e));
-          responseMessage = "I couldn't update that shopping-list item. Please try again later.";
-        }
-
-        await ctx.reply(responseMessage);
-        return responseMessage;
-      };
-
       const deleteShoppingListItem = async (itemName: string, taskId?: string): Promise<string> => {
         let responseMessage: string;
         try {
@@ -353,76 +307,92 @@ export default {
         return responseMessage;
       };
 
-      const response = await retry(async () => {
-        const response = await openai_process.responses.create({
-          model: model_process,
-          instructions: getSystemPrompt({ now: new Date(requestNow) }).content,
-          input,
-          reasoning: { effort: "low" },
-          store: false,
-          include: ["reasoning.encrypted_content"],
-          tools: shoppingTools,
-          parallel_tool_calls: false,
-        });
-        if (response.status !== "completed" || !response.output?.length) {
-          throw new Error(`Model response ${response.status}: ${response.error?.message ?? response.incomplete_details?.reason ?? "no output"}`);
-        }
-        return response;
-      }, { retries: 3 });
-      const outputItems = responseOutputToInput(response.output);
-      const toolCalls = response.output.filter(item => item.type === "function_call");
-      let tool_resp: string | undefined;
-      // If there's a tool call, do it
-      if (toolCalls.length) {
-        if (toolCalls.length !== 1) {
-          throw new Error("Expected one tool call");
-        }
-        const tool = toolCalls[0];
-        if (tool.name === "addShoppingListItems") {
-          const args = JSON.parse(tool.arguments) as AddShoppingListItemArguments;
-          const items = args.items;
-          if (!items || items.length === 0) {
-            throw new Error("No items found");
+      let modelInput = input;
+      for (let step = 0; step < 8; step++) {
+        const response = await retry(async () => {
+          const response = await openai_process.responses.create({
+            model: model_process,
+            instructions: getSystemPrompt({ now: new Date(requestNow) }).content,
+            input: modelInput,
+            reasoning: { effort: "low" },
+            store: false,
+            include: ["reasoning.encrypted_content"],
+            tools: shoppingTools,
+            parallel_tool_calls: false,
+          });
+          if (response.status !== "completed" || !response.output?.length) {
+            throw new Error(`Model response ${response.status}: ${response.error?.message ?? response.incomplete_details?.reason ?? "no output"}`);
           }
-          tool_resp = await addShoppingListItems(items);
-        } else if (tool.name === "updateShoppingListItem") {
-          const args = JSON.parse(tool.arguments) as UpdateShoppingListItemArguments;
-          if (!args.itemName || !args.dueDate) {
-            throw new Error("Item name and due date are required");
+          return response;
+        }, { retries: 3 });
+        const outputItems = responseOutputToInput(response.output);
+        const toolCalls = response.output.filter(item => item.type === "function_call");
+        let tool_resp: string | undefined;
+        // If there's a tool call, do it
+        if (toolCalls.length) {
+          if (toolCalls.length !== 1) {
+            throw new Error("Expected one tool call");
           }
-          tool_resp = await updateShoppingListItem(
-            args.itemName,
-            args.dueDate,
-            args.dueTime,
-            args.taskId,
-          );
-        } else if (tool.name === "deleteShoppingListItem") {
-          const args = JSON.parse(tool.arguments) as ShoppingListItemArguments;
-          if (!args.itemName?.trim()) throw new Error("Item name is required");
-          tool_resp = await deleteShoppingListItem(args.itemName, args.taskId);
+          const tool = toolCalls[0];
+          if (tool.name === "addShoppingListItems") {
+            const args = JSON.parse(tool.arguments) as AddShoppingListItemArguments;
+            const items = args.items;
+            if (!items || items.length === 0) {
+              throw new Error("No items found");
+            }
+            tool_resp = await addShoppingListItems(items);
+          } else if (tool.name === "updateShoppingListItem") {
+            const args = JSON.parse(tool.arguments) as UpdateShoppingListItemArguments;
+            try {
+              tool_resp = await editShoppingListItem(todoistAPI, args, new Date(requestNow));
+            } catch (error) {
+              tool_resp = error instanceof Error ? error.message : "Could not update the item.";
+            }
+            await ctx.reply(tool_resp);
+          } else if (tool.name === "listShoppingListItems") {
+            const args = JSON.parse(tool.arguments) as { query?: string };
+            const items = await listShoppingListItems(todoistAPI, args.query);
+            tool_resp = JSON.stringify({ items, count: items.length });
+          } else if (tool.name === "mergeShoppingListItems") {
+            const args = JSON.parse(tool.arguments) as MergeItemsArguments;
+            try {
+              tool_resp = await mergeShoppingListItems(todoistAPI, args, new Date(requestNow));
+            } catch (error) {
+              tool_resp = error instanceof Error ? error.message : "Could not consolidate items.";
+            }
+            await ctx.reply(tool_resp);
+          } else if (tool.name === "deleteShoppingListItem") {
+            const args = JSON.parse(tool.arguments) as ShoppingListItemArguments;
+            if (!args.itemName?.trim()) throw new Error("Item name is required");
+            tool_resp = await deleteShoppingListItem(args.itemName, args.taskId);
+          } else {
+            throw new Error(`Unknown tool: ${tool.name}`);
+          }
+          modelInput = await doInstance.appendInputTurn([
+            ...outputItems,
+            { type: "function_call_output", output: tool_resp, call_id: tool.call_id },
+          ]);
+          if (tool.name === "listShoppingListItems") continue;
+          return;
         } else {
-          throw new Error(`Unknown tool: ${tool.name}`);
-        }
-        await doInstance.appendInputTurn([
-          ...outputItems,
-          { type: "function_call_output", output: tool_resp, call_id: tool.call_id },
-        ]);
-      } else {
-        if (response.output_text) {
-          await ctx.reply(
-            response.output_text,
-            {
-              reply_parameters: {
-                message_id: ctx.message.message_id,
+          if (response.output_text) {
+            await ctx.reply(
+              response.output_text,
+              {
+                reply_parameters: {
+                  message_id: ctx.message.message_id,
+                },
               },
-            },
-          );
+            );
 
-          await doInstance.appendInputTurn(outputItems);
-        } else {
-          throw new Error("No content in bot response");
+            await doInstance.appendInputTurn(outputItems);
+            return;
+          } else {
+            throw new Error("No content in bot response");
+          }
         }
       }
+      await ctx.reply("I reached the lookup limit. Please narrow down which items you want to change.");
     }
 
     const textFilter = matchFilter("message:text");
